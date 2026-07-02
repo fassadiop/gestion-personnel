@@ -1,0 +1,131 @@
+# apps/rh/models/conge.py
+
+from django.db import models
+
+from apps.rh.models.base_evenement import BaseEvenementModel
+from apps.rh.models.decision_conge import DecisionConge
+
+
+class Conge(BaseEvenementModel):
+    """
+    Période effective de jouissance d'un congé administratif.
+
+    Une décision de congé peut donner lieu à une ou plusieurs
+    périodes de jouissance (fractionnement).
+
+    Chaque enregistrement représente une période effective
+    de consommation du droit accordé.
+    """
+
+    decision_conge = models.ForeignKey(
+        DecisionConge,
+        on_delete=models.PROTECT,
+        related_name="conges",
+        verbose_name="Décision de congé",
+        help_text="Décision administrative ayant accordé ce congé.",
+    )
+
+    date_cessation_service = models.DateField(
+        verbose_name="Date de cessation de service",
+        help_text="Date à laquelle l'agent cesse effectivement le service.",
+    )
+
+    date_reprise = models.DateField(
+        verbose_name="Date de reprise de service",
+        help_text="Date effective de reprise du service.",
+    )
+
+    class Meta:
+        db_table = "conge"
+
+        verbose_name = "Congé"
+        verbose_name_plural = "Congés"
+
+        ordering = [
+            "date_cessation_service",
+        ]
+
+        constraints = [
+
+            models.CheckConstraint(
+                condition=models.Q(
+                    date_reprise__gt=models.F(
+                        "date_cessation_service"
+                    )
+                ),
+                name="ck_conge_dates_coherentes",
+            ),
+
+            models.UniqueConstraint(
+                fields=[
+                    "decision_conge",
+                    "date_cessation_service",
+                ],
+                name="uq_conge_decision_date_cessation",
+            ),
+
+        ]
+
+        indexes = [
+
+            models.Index(
+                fields=["decision_conge"],
+            ),
+
+            models.Index(
+                fields=["date_cessation_service"],
+            ),
+
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.agent} "
+            f"({self.date_cessation_service:%d/%m/%Y}"
+            f" → "
+            f"{self.date_reprise:%d/%m/%Y})"
+        )
+    
+        # ==========================================================
+    # PROPRIÉTÉS MÉTIER
+    # ==========================================================
+
+    @property
+    def nombre_jours(self):
+        """
+        Nombre de jours correspondant à cette
+        période de jouissance.
+
+        Le mode de calcul (inclusif ou exclusif)
+        sera aligné sur les règles de la Fonction
+        publique sénégalaise.
+        """
+        return (
+            self.date_reprise
+            - self.date_cessation_service
+        ).days
+
+    @property
+    def numero_tranche(self):
+        """
+        Rang chronologique de cette période
+        de jouissance dans la décision.
+        """
+        return (
+            self.decision_conge.conges
+            .filter(
+                date_cessation_service__lt=self.date_cessation_service
+            )
+            .count()
+            + 1
+        )
+
+    @property
+    def est_fractionnement(self):
+        """
+        Indique si la décision comporte
+        plusieurs périodes de jouissance.
+        """
+        return (
+            self.decision_conge.conges.count() > 1
+        )

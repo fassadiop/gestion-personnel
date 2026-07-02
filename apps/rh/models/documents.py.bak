@@ -1,0 +1,264 @@
+# apps/rh/models/documents.py
+
+from django.db import models
+
+from apps.rh.core.base import BaseDocument
+
+from apps.rh.models.evenement import EvenementCarriere
+from apps.rh.models.organisation import Structure
+from apps.rh.models.referentiels import TypeDocument
+
+from django.conf import settings
+from django.db.models import Q
+from apps.rh.models.agent import Agent
+
+
+class DocumentAdministratif(BaseDocument):
+    """
+    Document administratif.
+
+    Un document administratif constitue la preuve d'un
+    événement de carrière.
+
+    Le document ne contient aucune règle métier.
+    Il permet uniquement de justifier un événement
+    administratif.
+
+    Exemples :
+
+    - Arrêté
+    - Décret
+    - Décision
+    - Note de service
+    - Attestation
+    - Certificat
+    - Diplôme
+    - Rapport
+    """
+
+    evenement = models.ForeignKey(
+        EvenementCarriere,
+        on_delete=models.PROTECT,
+        related_name="documents",
+        verbose_name="Événement de carrière",
+        help_text="Événement justifié par ce document.",
+    )
+
+    type_document = models.ForeignKey(
+        TypeDocument,
+        on_delete=models.PROTECT,
+        related_name="documents",
+        verbose_name="Type de document",
+        help_text="Nature du document administratif.",
+    )
+
+    structure_emettrice = models.ForeignKey(
+        Structure,
+        on_delete=models.PROTECT,
+        related_name="documents_emis",
+        verbose_name="Structure émettrice",
+        help_text="Structure ayant émis le document.",
+    )
+
+    numero_document = models.CharField(
+        max_length=150,
+        blank=True,
+        verbose_name="Numéro du document",
+        help_text="Numéro officiel du document.",
+    )
+
+    date_document = models.DateField(
+        verbose_name="Date du document",
+        help_text="Date de signature du document.",
+    )
+
+    signataire = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Signataire",
+        help_text="Autorité ayant signé le document.",
+    )
+
+    class Meta:
+        db_table = "document_administratif"
+
+        verbose_name = "Document administratif"
+        verbose_name_plural = "Documents administratifs"
+
+        ordering = [
+            "-date_document",
+            "-id",
+        ]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["hash_document"],
+                condition=models.Q(hash_document__gt=""),
+                name="uq_document_hash",
+            ),
+        ]
+
+        indexes = [
+
+            models.Index(fields=["evenement"]),
+
+            models.Index(fields=["type_document"]),
+
+            models.Index(fields=["structure_emettrice"]),
+
+            models.Index(fields=["numero_document"]),
+
+            models.Index(fields=["date_document"]),
+
+            models.Index(fields=["hash_document"]),
+
+        ]
+
+    def __str__(self):
+        numero = f" n°{self.numero_document}" if self.numero_document else ""
+        return (
+            f"{self.type_document.libelle}"
+            f"{numero}"
+            f" ({self.date_document:%d/%m/%Y})"
+        )
+    
+
+class DocumentAgent(BaseDocument):
+    """
+    Pièce permanente du dossier administratif d'un agent.
+
+    Ce modèle représente les documents personnels de l'agent
+    qui ne sont pas produits par un événement de carrière.
+
+    Exemples :
+        - Carte Nationale d'Identité
+        - Passeport
+        - Extrait de naissance
+        - Casier judiciaire
+        - Diplôme
+        - Certificat médical
+        - Photo d'identité
+
+    Ces documents constituent le dossier administratif
+    permanent de l'agent.
+    """
+
+    structure = models.ForeignKey(
+        Structure,
+        on_delete=models.PROTECT,
+        related_name="documents_agent",
+        verbose_name="Structure",
+    )
+
+    agent = models.ForeignKey(
+        Agent,
+        on_delete=models.PROTECT,
+        related_name="documents_personnels",
+        verbose_name="Agent",
+    )
+
+    type_document = models.ForeignKey(
+        TypeDocument,
+        on_delete=models.PROTECT,
+        related_name="documents_agent",
+        verbose_name="Type de document",
+    )
+
+    numero_document = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Numéro du document",
+    )
+
+    date_document = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Date du document",
+    )
+
+    date_expiration = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Date d'expiration",
+    )
+
+    est_verifie = models.BooleanField(
+        default=False,
+        verbose_name="Document vérifié",
+    )
+
+    date_verification = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Date de vérification",
+    )
+
+    verifie_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="documents_personnels_verifies",
+        verbose_name="Vérifié par",
+    )
+
+    class Meta:
+        verbose_name = "Document de l'agent"
+        verbose_name_plural = "Documents de l'agent"
+
+        ordering = (
+            "type_document",
+            "-date_document",
+        )
+
+        indexes = [
+            models.Index(
+                fields=["structure"],
+                name="idx_docagt_structure",
+            ),
+            models.Index(
+                fields=["agent"],
+                name="idx_docagt_agent",
+            ),
+            models.Index(
+                fields=["type_document"],
+                name="idx_docagt_type",
+            ),
+            models.Index(
+                fields=["numero_document"],
+                name="idx_docagt_numero",
+            ),
+            models.Index(
+                fields=["date_expiration"],
+                name="idx_docagt_expiration",
+            ),
+            models.Index(
+                fields=["est_verifie"],
+                name="idx_docagt_verifie",
+            ),
+        ]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "agent",
+                    "type_document",
+                    "numero_document",
+                ],
+                condition=Q(actif=True),
+                name="uq_docagt_agent_type_num",
+            ),
+        ]
+
+    def __str__(self):
+        numero = (
+            f" ({self.numero_document})"
+            if self.numero_document
+            else ""
+        )
+
+        return (
+            f"{self.type_document} - "
+            f"{self.agent}"
+            f"{numero}"
+        )

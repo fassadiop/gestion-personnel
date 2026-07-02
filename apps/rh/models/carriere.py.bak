@@ -1,0 +1,116 @@
+# apps/rh/models/carriere.py
+
+from django.db import models
+
+from apps.rh.core.base import BaseStructureModel
+from apps.rh.models.referentiels import (
+    Classe,
+    Corps,
+    Echelon,
+    Grade,
+    PositionAdministrative,
+)
+
+class SituationAdministrative(BaseStructureModel):
+    """
+    Historique des situations administratives d'un agent.
+
+    Chaque événement administratif (recrutement,
+    titularisation, avancement, promotion,
+    reclassement...) crée une nouvelle situation.
+    """
+
+    evenement = models.ForeignKey(
+        "EvenementCarriere",
+        on_delete=models.PROTECT,
+        related_name="situations_administratives",
+        verbose_name="Événement de carrière",
+    )
+
+    agent = models.ForeignKey(
+        "Agent",
+        on_delete=models.PROTECT,
+        related_name="situations_administratives",
+        verbose_name="Agent",
+    )
+
+    corps = models.ForeignKey(
+        Corps,
+        on_delete=models.PROTECT,
+        related_name="situations",
+        verbose_name="Corps",
+    )
+
+    grade = models.ForeignKey(
+        Grade,
+        on_delete=models.PROTECT,
+        related_name="situations",
+        verbose_name="Grade",
+    )
+
+    classe = models.ForeignKey(
+        Classe,
+        on_delete=models.PROTECT,
+        related_name="situations",
+        verbose_name="Classe",
+    )
+
+    echelon = models.ForeignKey(
+        Echelon,
+        on_delete=models.PROTECT,
+        related_name="situations",
+        verbose_name="Échelon",
+    )
+
+    position_administrative = models.ForeignKey(
+        PositionAdministrative,
+        on_delete=models.PROTECT,
+        related_name="situations",
+        verbose_name="Position administrative",
+    )
+
+    date_effet = models.DateField(
+        verbose_name="Date d'effet",
+        help_text="Date de prise d'effet de la situation administrative.",
+    )
+
+    date_fin = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Date de fin",
+        help_text="Date de fin de validité de cette situation.",
+    )
+
+    est_courante = models.BooleanField(
+        default=True,
+        verbose_name="Situation courante",
+        help_text="Indique si cette situation est actuellement en vigueur.",
+    )
+
+    class Meta:
+        db_table = "situation_administrative"
+        verbose_name = "Situation administrative"
+        verbose_name_plural = "Situations administratives"
+        ordering = ["-date_effet"]
+
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(date_fin__isnull=True)
+                | models.Q(date_fin__gte=models.F("date_effet")),
+                name="ck_situation_date_fin",
+            ),
+        ]
+
+        indexes = [
+            models.Index(fields=["agent"]),
+            models.Index(fields=["date_effet"]),
+            models.Index(fields=["est_courante"]),
+            models.Index(fields=["position_administrative"]),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.agent} - "
+            f"{self.position_administrative} "
+            f"({self.date_effet:%d/%m/%Y})"
+        )

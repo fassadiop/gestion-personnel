@@ -1,0 +1,82 @@
+# apps/rh/models/reclassement.py
+
+from django.db import models
+
+from apps.rh.core.base import BaseStructureModel
+
+from apps.rh.models.evenement import EvenementCarriere
+
+from apps.rh.models.referentiels import (
+    Grade,
+    Classe,
+    Echelon,
+)
+
+
+class Reclassement(BaseStructureModel):
+    """
+    Informations spécifiques à un reclassement.
+
+    Un reclassement entraîne une évolution
+    de la situation administrative de l'agent.
+
+    Les anciennes informations sont déjà
+    historisées dans SituationAdministrative.
+
+    Ce modèle ne contient donc que les
+    nouvelles valeurs.
+    """
+
+    evenement = models.OneToOneField(
+        EvenementCarriere,
+        on_delete=models.CASCADE,
+        related_name="reclassement",
+        verbose_name="Événement de carrière",
+        help_text="Événement de reclassement.",
+    )
+
+    grade = models.ForeignKey(
+        Grade,
+        on_delete=models.PROTECT,
+        related_name="reclassements",
+        verbose_name="Nouveau grade",
+    )
+
+    classe = models.ForeignKey(
+        Classe,
+        on_delete=models.PROTECT,
+        related_name="reclassements",
+        verbose_name="Nouvelle classe",
+    )
+
+    echelon = models.ForeignKey(
+        Echelon,
+        on_delete=models.PROTECT,
+        related_name="reclassements",
+        verbose_name="Nouvel échelon",
+    )
+
+    class Meta:
+        db_table = "rh_reclassement"
+
+        verbose_name = "Reclassement"
+        verbose_name_plural = "Reclassements"
+
+        ordering = [
+            "-id",
+        ]
+
+        indexes = [
+
+            models.Index(fields=["grade"]),
+
+            models.Index(fields=["classe"]),
+
+            models.Index(fields=["echelon"]),
+
+        ]
+
+    def __str__(self):
+        return (
+            f"Reclassement de {self.evenement.agent}"
+        )

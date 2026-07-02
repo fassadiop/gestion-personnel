@@ -1,0 +1,277 @@
+# apps/rh/models/formation.py
+
+from decimal import Decimal
+
+from django.core.exceptions import ValidationError
+from django.db import models
+from django.utils import timezone
+
+from apps.rh.models.base_evenement import BaseEvenementModel
+from apps.rh.models.evenement import EvenementCarriere
+from apps.rh.models.referentiels import (
+    NiveauFormation,
+    OrganismeFormation,
+    Pays,
+    SourceFinancement,
+    TypeFormation,
+)
+
+
+class Formation(BaseEvenementModel):
+    """
+    Formation suivie par un agent.
+
+    Une formation constitue la spécialisation d'un
+    événement de carrière.
+
+    Les informations communes (agent, structure,
+    dates, acte administratif, position administrative...)
+    sont portées par EvenementCarriere.
+
+    Cette entité ne contient que les informations
+    spécifiques à la formation.
+    """
+
+    evenement = models.OneToOneField(
+        EvenementCarriere,
+        on_delete=models.PROTECT,
+        related_name="formation",
+        verbose_name="Événement de carrière",
+        help_text="Événement de carrière associé à cette formation.",
+    )
+
+    type_formation = models.ForeignKey(
+        TypeFormation,
+        on_delete=models.PROTECT,
+        related_name="formations",
+        verbose_name="Type de formation",
+    )
+
+    niveau_formation = models.ForeignKey(
+        NiveauFormation,
+        on_delete=models.PROTECT,
+        related_name="formations",
+        null=True,
+        blank=True,
+        verbose_name="Niveau de formation",
+        help_text=(
+            "Niveau obtenu ou visé "
+            "(Licence, Master, Doctorat...)."
+        ),
+    )
+
+    organisme_formation = models.ForeignKey(
+        OrganismeFormation,
+        on_delete=models.PROTECT,
+        related_name="formations",
+        verbose_name="Organisme de formation",
+    )
+
+    pays = models.ForeignKey(
+        Pays,
+        on_delete=models.PROTECT,
+        related_name="formations",
+        verbose_name="Pays",
+    )
+
+    intitule = models.CharField(
+        max_length=255,
+        verbose_name="Intitulé",
+        help_text="Intitulé officiel de la formation.",
+    )
+
+    source_financement = models.ForeignKey(
+        SourceFinancement,
+        on_delete=models.PROTECT,
+        related_name="formations",
+        null=True,
+        blank=True,
+        verbose_name="Source de financement",
+    )
+
+    cout = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        verbose_name="Coût",
+        help_text="Coût global de la formation.",
+    )
+
+    rapport_remis = models.BooleanField(
+        default=False,
+        verbose_name="Rapport remis",
+        help_text="Indique si le rapport de formation a été remis.",
+    )
+
+    diplome_obtenu = models.BooleanField(
+        default=False,
+        verbose_name="Diplôme obtenu",
+    )
+
+    numero_diplome = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Numéro du diplôme",
+    )
+
+    date_obtention_diplome = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Date d'obtention du diplôme",
+    )
+
+    class Meta:
+        db_table = "formation"
+
+        verbose_name = "Formation"
+        verbose_name_plural = "Formations"
+
+        ordering = [
+            "-evenement__date_effet",
+            "intitule",
+        ]
+
+        constraints = [
+
+            models.CheckConstraint(
+                condition=models.Q(cout__gte=0),
+                name="ck_formation_cout_positif",
+            ),
+
+        ]
+
+        indexes = [
+
+            models.Index(fields=["type_formation"]),
+
+            models.Index(fields=["niveau_formation"]),
+
+            models.Index(fields=["organisme_formation"]),
+
+            models.Index(fields=["pays"]),
+
+            models.Index(fields=["source_financement"]),
+
+            models.Index(fields=["intitule"]),
+
+            models.Index(fields=["diplome_obtenu"]),
+
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.intitule} - "
+            f"{self.evenement.agent}"
+        )
+    
+    def clean(self):
+        """
+        Validations métier.
+        """
+        super().clean()
+
+        # Le coût ne peut pas être négatif.
+        if self.cout is not None and self.cout < 0:
+            raise ValidationError(
+                {
+                    "cout": (
+                        "Le coût de la formation ne peut pas être négatif."
+                    )
+                }
+            )
+
+        # Si un diplôme est déclaré obtenu,
+        # son numéro devient obligatoire.
+        if self.diplome_obtenu and not self.numero_diplome:
+            raise ValidationError(
+                {
+                    "numero_diplome": (
+                        "Le numéro du diplôme est obligatoire."
+                    )
+                }
+            )
+
+        # La date d'obtention n'a de sens
+        # que lorsqu'un diplôme est obtenu.
+        if self.date_obtention_diplome and not self.diplome_obtenu:
+            raise ValidationError(
+                {
+                    "date_obtention_diplome": (
+                        "Impossible de renseigner une date "
+                        "d'obtention sans diplôme obtenu."
+                    )
+                }
+            )
+
+        # Le numéro du diplôme ne doit pas être
+        # renseigné lorsqu'aucun diplôme n'a été obtenu.
+        if not self.diplome_obtenu and self.numero_diplome:
+            raise ValidationError(
+                {
+                    "numero_diplome": (
+                        "Ce champ doit rester vide lorsqu'aucun "
+                        "diplôme n'a été obtenu."
+                    )
+                }
+            )
+
+        # Contrôle chronologique.
+        if (
+            self.date_obtention_diplome
+            and self.evenement.date_fin
+            and self.date_obtention_diplome < self.evenement.date_fin
+        ):
+            raise ValidationError(
+                {
+                    "date_obtention_diplome": (
+                        "La date d'obtention du diplôme "
+                        "ne peut pas être antérieure à la fin "
+                        "de la formation."
+                    )
+                }
+            )
+
+    @property
+    def duree(self):
+        """
+        Durée de la formation en jours.
+
+        Retourne None si la formation est toujours en cours.
+        """
+        if not self.evenement.date_fin:
+            return None
+
+        return (
+            self.evenement.date_fin
+            - self.evenement.date_effet
+        ).days
+
+    @property
+    def est_en_cours(self):
+        """
+        Indique si la formation est toujours en cours.
+        """
+        if self.evenement.date_fin is None:
+            return True
+
+        today = timezone.localdate()
+
+        return (
+            self.evenement.date_fin is None
+            or self.evenement.date_fin >= today
+        )
+
+    @property
+    def est_terminee(self):
+        """
+        Indique si la formation est terminée.
+        """
+        return not self.est_en_cours
+    
+    def save(self, *args, **kwargs):
+        """
+        Exécute les validations métier avant
+        toute sauvegarde.
+        """
+        self.full_clean()
+        return super().save(*args, **kwargs)
