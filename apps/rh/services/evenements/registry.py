@@ -9,11 +9,20 @@ Description :
     de carrière.
 
 Auteur : SGCP
-Version : 1.0
+Version : 2.2
 ==========================================================
 """
 
-from apps.rh.services.evenements.base import BaseEvenementHandler
+from typing import Dict, Type
+
+from apps.rh.services.evenements.base import (
+    BaseEvenementHandler,
+)
+
+from apps.rh.services.evenements.context import (
+    ExecutionContext,
+)
+
 from apps.rh.services.evenements.exceptions import (
     HandlerAlreadyRegisteredError,
     HandlerNotFoundError,
@@ -22,47 +31,36 @@ from apps.rh.services.evenements.exceptions import (
 
 class HandlerRegistry:
     """
-    Registre central des handlers du moteur de carrière.
+    Registre central des handlers du moteur
+    de carrière.
 
-    Associe un code de type d'événement à la classe
-    responsable de son traitement.
-
-    Ce registre constitue le point d'entrée unique
-    permettant de résoudre le handler adapté à un
-    événement de carrière.
-
-    Exemple
-    --------
-        HandlerRegistry.register(
-            "PROMOTION",
-            PromotionHandler,
-        )
-
-        handler = HandlerRegistry.get_handler(
-            evenement
-        )
-
-        handler.execute()
+    Associe chaque type d'événement
+    à son handler.
     """
 
-    _handlers = {}
+    _handlers: Dict[
+        str,
+        Type[BaseEvenementHandler],
+    ] = {}
 
     # =====================================================
     # Enregistrement
     # =====================================================
 
     @classmethod
-    def register(cls, code_evenement, handler_class):
+    def register(
+        cls,
+        code_evenement: str,
+        handler_class: Type[BaseEvenementHandler],
+    ):
         """
         Enregistre un handler.
-
-        Args:
-            code_evenement (str):
-                Code métier du type d'événement.
-
-            handler_class (type):
-                Classe héritant de BaseEvenementHandler.
         """
+
+        if not code_evenement:
+            raise ValueError(
+                "Le code de l'événement est obligatoire."
+            )
 
         code = code_evenement.upper()
 
@@ -83,26 +81,47 @@ class HandlerRegistry:
 
         cls._handlers[code] = handler_class
 
+        return handler_class
+
     # =====================================================
-    # Recherche
+    # Résolution
     # =====================================================
 
     @classmethod
-    def get_handler(cls, evenement):
+    def get_handler(
+        cls,
+        context: ExecutionContext,
+    ) -> BaseEvenementHandler:
         """
-        Retourne une instance du handler adapté.
-
-        Args:
-            evenement:
-                Instance de EvenementCarriere.
-
-        Returns:
-            BaseEvenementHandler
+        Retourne une instance du handler
+        correspondant au contexte
+        d'exécution.
         """
 
-        code = evenement.type_evenement.code.upper()
+        if context is None:
+            raise HandlerNotFoundError(
+                "Aucun contexte fourni."
+            )
 
-        handler_class = cls._handlers.get(code)
+        evenement = context.evenement
+
+        if evenement is None:
+            raise HandlerNotFoundError(
+                "Aucun événement fourni."
+            )
+
+        if evenement.type_evenement is None:
+            raise HandlerNotFoundError(
+                "Le type d'événement est obligatoire."
+            )
+
+        code = (
+            evenement.type_evenement.code.upper()
+        )
+
+        handler_class = cls._handlers.get(
+            code
+        )
 
         if handler_class is None:
             raise HandlerNotFoundError(
@@ -110,17 +129,25 @@ class HandlerRegistry:
                 f"le type d'événement '{code}'."
             )
 
-        return handler_class(evenement)
+        return handler_class(
+            context=context,
+        )
 
     # =====================================================
     # Utilitaires
     # =====================================================
 
     @classmethod
-    def has_handler(cls, code_evenement):
+    def has_handler(
+        cls,
+        code_evenement: str,
+    ) -> bool:
         """
         Vérifie qu'un handler est enregistré.
         """
+
+        if not code_evenement:
+            return False
 
         return (
             code_evenement.upper()
@@ -128,12 +155,18 @@ class HandlerRegistry:
         )
 
     @classmethod
-    def unregister(cls, code_evenement):
+    def unregister(
+        cls,
+        code_evenement: str,
+    ):
         """
         Supprime un handler.
 
         Principalement utilisé pour les tests.
         """
+
+        if not code_evenement:
+            return
 
         cls._handlers.pop(
             code_evenement.upper(),
@@ -151,12 +184,14 @@ class HandlerRegistry:
         cls._handlers.clear()
 
     @classmethod
-    def registered_handlers(cls):
+    def get_registered_handlers(
+        cls,
+    ) -> Dict[
+        str,
+        Type[BaseEvenementHandler],
+    ]:
         """
-        Retourne la liste des handlers enregistrés.
-
-        Returns:
-            dict
+        Retourne tous les handlers enregistrés.
         """
 
         return cls._handlers.copy()

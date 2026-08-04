@@ -9,11 +9,15 @@ Description :
     du moteur de carrière.
 
 Auteur : SGCP
-Version : 1.0
+Version : 2.2
 ==========================================================
 """
 
 from abc import ABC, abstractmethod
+from apps.rh.models import StatutEvenement
+from apps.rh.services.evenements.context import (
+    ExecutionContext,
+)
 
 from apps.rh.services.evenements.exceptions import (
     EvenementInvalideError,
@@ -26,10 +30,11 @@ class BaseEvenementHandler(ABC):
     Classe abstraite de base de tous les handlers
     du moteur de carrière.
 
-    Chaque événement suit exactement le même cycle
-    d'exécution :
+    Tous les handlers suivent le même cycle :
 
         execute()
+            ↓
+        load_context()
             ↓
         validate()
             ↓
@@ -41,107 +46,198 @@ class BaseEvenementHandler(ABC):
             ↓
         audit()
 
-    Les classes filles ne redéfinissent généralement
-    que la méthode process().
+    Les handlers spécialisés implémentent
+    uniquement la méthode process().
     """
 
-    def __init__(self, evenement):
+    def __init__(
+        self,
+        context: ExecutionContext,
+    ):
         """
         Initialise le handler.
-
-        Args:
-            evenement:
-                Instance de EvenementCarriere.
         """
 
-        self.evenement = evenement
+        self.context = context
 
-        # Contexte partagé entre les différentes
-        # étapes du traitement.
-        self.context = {}
+        self._situation = None
+        self._affectation = None
+        self._occupation = None
 
     # =====================================================
     # Propriétés
     # =====================================================
 
     @property
-    def agent(self):
-        """Agent concerné."""
-        return self.evenement.agent
-
-    @property
-    def type_evenement(self):
-        """Type d'événement."""
-        return self.evenement.type_evenement
-
-    @property
-    def code_evenement(self):
-        """Code métier de l'événement."""
-        return self.type_evenement.code
-
-    @property
-    def statut(self):
-        """Code du statut."""
-        return self.evenement.statut.code
-
-    @property
-    def date_effet(self):
-        """Date d'effet."""
-        return self.evenement.date_effet
-
-    @property
-    def reference(self):
-        """Référence administrative."""
-        return self.evenement.reference
+    def evenement(self):
+        """
+        Événement courant.
+        """
+        return self.context.evenement
 
     @property
     def utilisateur(self):
         """
-        Utilisateur ayant validé
-        l'événement.
+        Utilisateur courant.
+        """
+        return self.context.utilisateur
+
+    @property
+    def request(self):
+        """
+        Requête HTTP.
+        """
+        return self.context.request
+
+    @property
+    def agent(self):
+        """
+        Agent concerné.
+        """
+        return self.evenement.agent
+
+    @property
+    def type_evenement(self):
+        """
+        Type d'événement.
+        """
+        return self.evenement.type_evenement
+
+    @property
+    def code_evenement(self):
+        """
+        Code métier.
+        """
+        return self.type_evenement.code
+
+    @property
+    def statut(self):
+        """
+        Code du statut.
+        """
+        return self.evenement.statut.code
+
+    @property
+    def date_effet(self):
+        """
+        Date d'effet.
+        """
+        return self.evenement.date_effet
+
+    @property
+    def reference_acte(self):
+        """
+        Référence administrative.
+        """
+        return self.evenement.reference_acte
+
+    @property
+    def situation(self):
+        """
+        Situation administrative courante.
+        """
+        return self._situation
+
+    @property
+    def affectation(self):
+        """
+        Affectation courante.
+        """
+        return self._affectation
+
+    @property
+    def occupation(self):
+        """
+        Occupation principale de poste.
+        """
+        return self._occupation
+
+    # =====================================================
+    # Chargement du contexte
+    # =====================================================
+
+    def load_context(self):
+        """
+        Charge le contexte courant
+        de l'agent.
         """
 
-        return getattr(
-            self.evenement,
-            "valide_par",
-            None,
+        print("===== LOAD CONTEXT =====")
+        print("Agent :", self.agent.id)
+
+        self._situation = (
+            self.agent.situation_administrative_courante
         )
-    
-    def load_evenement_data(
+
+        print("Situation chargée :", self._situation)
+
+        self._affectation = (
+            self.agent.affectation_courante
+        )
+
+        self._occupation = (
+            self.agent.occupations_poste.filter(
+                date_fin__isnull=True,
+                est_interim=False,
+            ).first()
+        )
+
+    def get_evenement_data(
         self,
         relation_name: str,
         model_class,
     ):
         """
-        Charge les données spécialisées d'un événement.
+        Retourne les données spécialisées
+        d'un événement.
 
-        Args:
-            relation_name:
-                Nom de la relation OneToOne portée
-                par EvenementCarriere.
-
-            model_class:
-                Classe du modèle attendu.
-
-        Returns:
-            Instance du modèle spécialisé.
-
-        Raises:
-            EvenementInvalideError
+        Recherche d'abord une relation métier
+        explicite (ex. : evenement.conge),
+        puis, à défaut, la relation générée
+        automatiquement par BaseEvenementModel
+        (ex. : evenement.rh_conge).
         """
 
-        try:
+        # ==========================================
+        # 1. Relation métier explicite
+        # ==========================================
+
+        if hasattr(
+            self.evenement,
+            relation_name,
+        ):
             return getattr(
                 self.evenement,
                 relation_name,
             )
 
-        except model_class.DoesNotExist:
-            raise EvenementInvalideError(
-                f"Les informations de "
-                f"{relation_name.replace('_', ' ')} "
-                "sont absentes."
+        # ==========================================
+        # 2. Relation générée automatiquement
+        # ==========================================
+
+        generated_relation = (
+            f"{model_class._meta.app_label}_"
+            f"{model_class._meta.model_name}"
+        )
+
+        if hasattr(
+            self.evenement,
+            generated_relation,
+        ):
+            return getattr(
+                self.evenement,
+                generated_relation,
             )
+
+        # ==========================================
+        # 3. Aucune relation trouvée
+        # ==========================================
+
+        raise EvenementInvalideError(
+            f"Les informations de "
+            f"{relation_name.replace('_', ' ')} "
+            "sont absentes."
+        )
 
     # =====================================================
     # Cycle d'exécution
@@ -149,23 +245,29 @@ class BaseEvenementHandler(ABC):
 
     def execute(self):
         """
-        Exécute le cycle complet du handler.
-
-        Cette méthode ne doit jamais être
-        redéfinie.
+        Exécute le cycle complet
+        du handler.
         """
 
-        self.validate()
+        try:
 
-        self.before_execute()
+            self.load_context()
 
-        result = self.process()
+            self.validate()
 
-        self.after_execute()
+            self.before_execute()
 
-        self.audit()
+            result = self.process()
 
-        return result
+            self._marquer_evenement_valide()
+
+            self.after_execute()
+
+            return result
+
+        finally:
+
+            self.audit()
 
     # =====================================================
     # Validation commune
@@ -174,11 +276,6 @@ class BaseEvenementHandler(ABC):
     def validate(self):
         """
         Validations communes.
-
-        Les handlers spécialisés peuvent
-        redéfinir cette méthode en appelant :
-
-            super().validate()
         """
 
         if self.evenement is None:
@@ -191,15 +288,41 @@ class BaseEvenementHandler(ABC):
                 "Aucun agent associé à l'événement."
             )
 
+        if self.type_evenement is None:
+            raise EvenementInvalideError(
+                "Le type d'événement est obligatoire."
+            )
+
+        if self.date_effet is None:
+            raise EvenementInvalideError(
+                "La date d'effet est obligatoire."
+            )
+
         if not self.evenement.actif:
             raise EvenementInvalideError(
                 "L'événement est inactif."
             )
 
-        if self.statut != "VALIDE":
+        if self.statut != "EN_ATTENTE":
             raise StatutEvenementInvalideError(
-                "Seuls les événements validés peuvent être exécutés."
+                "Seuls les événements en attente "
+                "peuvent être exécutés."
             )
+        
+    def _marquer_evenement_valide(self):
+        """
+        Marque l'événement comme validé.
+        """
+
+        statut_valide = StatutEvenement.objects.get(
+            code="VALIDE"
+        )
+
+        self.evenement.statut = statut_valide
+
+        self.evenement.save(
+            update_fields=["statut"]
+        )
 
     # =====================================================
     # Hooks
@@ -207,14 +330,8 @@ class BaseEvenementHandler(ABC):
 
     def before_execute(self):
         """
-        Hook exécuté après validation.
-
-        Sert principalement à préparer
-        le contexte du traitement.
-
-        Exemple :
-
-            self.context["situation"] = ...
+        Hook exécuté avant
+        le traitement métier.
         """
         pass
 
@@ -223,22 +340,15 @@ class BaseEvenementHandler(ABC):
         """
         Traitement métier.
 
-        Cette méthode doit être implémentée
-        par tous les handlers.
-
-        Returns
-        -------
-        Any
-            Résultat du traitement métier.
+        À implémenter dans tous
+        les handlers.
         """
         raise NotImplementedError
 
     def after_execute(self):
         """
-        Hook exécuté après le traitement.
-
-        Peut servir à effectuer
-        des traitements complémentaires.
+        Hook exécuté après
+        le traitement métier.
         """
         pass
 
@@ -246,12 +356,11 @@ class BaseEvenementHandler(ABC):
         """
         Hook de journalisation.
 
-        Cette méthode sera utilisée
-        ultérieurement pour :
+        Sera utilisé ultérieurement pour :
 
-        - JournalAudit
-        - Notifications
-        - Signature électronique
-        - Historique
+            - Journal d'audit
+            - Notifications
+            - Signature électronique
+            - Historique
         """
         pass

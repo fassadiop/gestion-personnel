@@ -63,11 +63,6 @@ class Nomination(BaseStructureModel):
         verbose_name="Nouveau poste",
     )
 
-    date_prise_service = models.DateField(
-        verbose_name="Date de prise de service",
-        help_text="Date effective de prise de service.",
-    )
-
     class Meta:
         db_table = "rh_nomination"
 
@@ -75,7 +70,6 @@ class Nomination(BaseStructureModel):
         verbose_name_plural = "Nominations"
 
         ordering = [
-            "-date_prise_service",
             "-id",
         ]
 
@@ -84,8 +78,6 @@ class Nomination(BaseStructureModel):
             models.Index(fields=["structure"]),
 
             models.Index(fields=["poste"]),
-
-            models.Index(fields=["date_prise_service"]),
 
         ]
 

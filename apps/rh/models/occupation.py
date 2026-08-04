@@ -1,5 +1,3 @@
-# apps/rh/models/occupation.py
-
 from django.db import models
 
 from apps.rh.core.base import BaseStructureModel
@@ -13,19 +11,15 @@ class OccupationPoste(BaseStructureModel):
     """
     Historique des occupations de poste.
 
-    Cette entité permet d'historiser les différents agents
-    ayant occupé un poste au cours du temps.
-
-    Une occupation de poste est toujours créée à partir
-    d'un événement de carrière.
+    Une occupation est créée exclusivement
+    par un événement de carrière.
 
     Exemples :
-
-    - Nomination
-    - Mutation
-    - Affectation
-    - Intérim
-    - Remplacement
+    
+        - Affectation
+        - Mutation
+        - Nomination
+        - Intérim
     """
 
     agent = models.ForeignKey(
@@ -33,7 +27,6 @@ class OccupationPoste(BaseStructureModel):
         on_delete=models.PROTECT,
         related_name="occupations_poste",
         verbose_name="Agent",
-        help_text="Agent occupant le poste.",
     )
 
     poste = models.ForeignKey(
@@ -41,89 +34,83 @@ class OccupationPoste(BaseStructureModel):
         on_delete=models.PROTECT,
         related_name="occupations",
         verbose_name="Poste",
-        help_text="Poste occupé.",
     )
 
     evenement = models.ForeignKey(
         EvenementCarriere,
         on_delete=models.PROTECT,
         related_name="occupations_poste",
-        verbose_name="Événement de carrière",
-        help_text="Événement ayant créé cette occupation.",
+        verbose_name="Événement",
     )
 
     date_debut = models.DateField(
         verbose_name="Date de début",
-        help_text="Date de début d'occupation du poste.",
     )
 
     date_fin = models.DateField(
         null=True,
         blank=True,
         verbose_name="Date de fin",
-        help_text="Date de fin d'occupation du poste.",
+    )
+
+    est_interim = models.BooleanField(
+        default=False,
+        verbose_name="Occupation d'intérim",
+        help_text=(
+            "Indique que cette occupation "
+            "correspond à un intérim."
+        ),
     )
 
     class Meta:
+
         db_table = "rh_occupation_poste"
 
         verbose_name = "Occupation de poste"
         verbose_name_plural = "Occupations de poste"
 
-        ordering = [
+        ordering = (
             "-date_debut",
             "-id",
-        ]
+        )
 
-        constraints = [
+        constraints = (
 
             models.CheckConstraint(
                 condition=(
                     models.Q(date_fin__isnull=True)
                     |
-                    models.Q(date_fin__gte=models.F("date_debut"))
+                    models.Q(
+                        date_fin__gte=models.F("date_debut")
+                    )
                 ),
                 name="ck_occupation_poste_dates",
             ),
 
             models.UniqueConstraint(
-                fields=["poste"],
+                fields=("poste",),
                 condition=models.Q(date_fin__isnull=True),
                 name="uq_poste_occupation_active",
             ),
 
-        ]
+        )
 
-        indexes = [
+        indexes = (
 
-            models.Index(fields=["agent"]),
+            models.Index(fields=("agent",)),
 
-            models.Index(fields=["poste"]),
+            models.Index(fields=("poste",)),
 
-            models.Index(fields=["evenement"]),
+            models.Index(fields=("evenement",)),
 
-            models.Index(fields=["date_debut"]),
+            models.Index(fields=("date_debut",)),
 
-            models.Index(fields=["date_fin"]),
+            models.Index(fields=("date_fin",)),
 
-            models.Index(fields=["poste", "date_fin"]),
+            models.Index(fields=["agent", "est_interim"]),
 
-        ]
+        )
 
     def __str__(self):
-        if self.date_fin:
-            periode = (
-                f"{self.date_debut:%d/%m/%Y}"
-                f" → "
-                f"{self.date_fin:%d/%m/%Y}"
-            )
-        else:
-            periode = (
-                f"Depuis le {self.date_debut:%d/%m/%Y}"
-            )
 
-        return (
-            f"{self.agent} — "
-            f"{self.poste} "
-            f"({periode})"
-        )
+        return f"{self.agent} - {self.poste}"

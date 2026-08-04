@@ -1,30 +1,20 @@
-# apps/rh/models/reintegration.py
-
 from django.db import models
 
 from apps.rh.core.base import BaseStructureModel
 
 from apps.rh.models.evenement import EvenementCarriere
-from apps.rh.models.organisation import (
-    Structure,
-    UniteOrganisationnelle,
-    Poste,
-)
-from apps.rh.models.referentiels import PositionAdministrative
 
 
 class Reintegration(BaseStructureModel):
     """
-    Informations spécifiques à une réintégration.
+    Réintégration.
 
-    La réintégration remet un agent
-    en activité après une période
-    de détachement, de disponibilité
-    ou de stage.
+    Correspond à la réintégration d'un agent
+    après une formation, une mise à disposition, un détachement
+    ou une disponibilité.
 
-    Ce modèle ne contient que les
-    nouvelles informations applicables
-    à la reprise de service.
+    Cet événement modifie la position
+    administrative de l'agent.
     """
 
     evenement = models.OneToOneField(
@@ -32,48 +22,18 @@ class Reintegration(BaseStructureModel):
         on_delete=models.CASCADE,
         related_name="reintegration",
         verbose_name="Événement de carrière",
-        help_text="Événement de réintégration.",
+        help_text="Événement de carrière associé.",
     )
 
-    position_administrative = models.ForeignKey(
-        PositionAdministrative,
-        on_delete=models.PROTECT,
-        related_name="reintegrations",
-        verbose_name="Position administrative",
-        help_text="Nouvelle position administrative.",
+    motif = models.CharField(
+        max_length=255,
+        verbose_name="Motif",
+        help_text="Motif de la réintégration.",
     )
 
-    structure = models.ForeignKey(
-        Structure,
-        on_delete=models.PROTECT,
-        related_name="reintegrations",
-        verbose_name="Structure",
-        help_text="Structure de réintégration.",
-    )
-
-    unite = models.ForeignKey(
-        UniteOrganisationnelle,
-        on_delete=models.PROTECT,
-        related_name="reintegrations",
-        verbose_name="Unité organisationnelle",
-        help_text="Unité de réintégration.",
-        null=True,
-        blank=True,
-    )
-
-    poste = models.ForeignKey(
-        Poste,
-        on_delete=models.PROTECT,
-        related_name="reintegrations",
-        verbose_name="Poste",
-        help_text="Poste de réintégration.",
-        null=True,
-        blank=True,
-    )
-
-    date_prise_service = models.DateField(
-        verbose_name="Date de prise de service",
-        help_text="Date effective de reprise de service.",
+    date_reintegration = models.DateField(
+        verbose_name="Date de réintégration",
+        help_text="Date effective de réintégration.",
     )
 
     class Meta:
@@ -82,25 +42,18 @@ class Reintegration(BaseStructureModel):
         verbose_name = "Réintégration"
         verbose_name_plural = "Réintégrations"
 
-        ordering = [
-            "-date_prise_service",
+        ordering = (
+            "-date_reintegration",
             "-id",
-        ]
+        )
 
-        indexes = [
-
-            models.Index(fields=["position_administrative"]),
-
-            models.Index(fields=["structure"]),
-
-            models.Index(fields=["poste"]),
-
-            models.Index(fields=["date_prise_service"]),
-
-        ]
+        indexes = (
+            models.Index(fields=("evenement",)),
+            models.Index(fields=("date_reintegration",)),
+        )
 
     def __str__(self):
-
         return (
-            f"Réintégration de {self.evenement.agent}"
+            f"{self.evenement.agent} - "
+            f"{self.date_reintegration:%d/%m/%Y}"
         )

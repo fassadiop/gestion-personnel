@@ -17,23 +17,15 @@ class DocumentAdministratif(BaseDocument):
     """
     Document administratif.
 
-    Un document administratif constitue la preuve d'un
-    événement de carrière.
+    Un document administratif est associé à un événement de carrière.
 
-    Le document ne contient aucune règle métier.
-    Il permet uniquement de justifier un événement
-    administratif.
+    Il peut constituer :
 
-    Exemples :
+    - un acte administratif ;
+    - une pièce justificative ;
+    - une preuve documentaire.
 
-    - Arrêté
-    - Décret
-    - Décision
-    - Note de service
-    - Attestation
-    - Certificat
-    - Diplôme
-    - Rapport
+    Un même événement peut être justifié par plusieurs documents.
     """
 
     evenement = models.ForeignKey(
@@ -143,13 +135,6 @@ class DocumentAgent(BaseDocument):
     permanent de l'agent.
     """
 
-    structure = models.ForeignKey(
-        Structure,
-        on_delete=models.PROTECT,
-        related_name="documents_agent",
-        verbose_name="Structure",
-    )
-
     agent = models.ForeignKey(
         Agent,
         on_delete=models.PROTECT,
@@ -212,10 +197,6 @@ class DocumentAgent(BaseDocument):
         )
 
         indexes = [
-            models.Index(
-                fields=["structure"],
-                name="idx_docagt_structure",
-            ),
             models.Index(
                 fields=["agent"],
                 name="idx_docagt_agent",

@@ -8,72 +8,90 @@ Description :
     Handler de titularisation.
 
 Auteur : SGCP
-Version : 1.0
+Version : 2.1
 ==========================================================
 """
 
-from apps.rh.models.titularisation import Titularisation
-
-from apps.rh.services.evenements.exceptions import (
-    EvenementInvalideError,
+from apps.rh.models.titularisation import (
+    Titularisation,
 )
+
 from apps.rh.services.evenements.handlers.base_statut import (
     BaseStatutHandler,
 )
-from apps.rh.services.evenements.registry import HandlerRegistry
+
+from apps.rh.services.evenements.registry import (
+    HandlerRegistry,
+)
+
 from apps.rh.services.evenements.utils import (
     creer_situation,
 )
 
 
-class TitularisationHandler(BaseStatutHandler):
+class TitularisationHandler(
+    BaseStatutHandler,
+):
     """
     Handler de titularisation.
 
-    La titularisation confirme définitivement
-    l'intégration de l'agent dans son corps.
-
     Conséquences métier :
 
-        - clôture de la situation administrative courante ;
-        - création d'une nouvelle situation administrative.
+        - clôture de la situation administrative
+          courante ;
 
-    L'affectation et l'occupation du poste ne sont
-    pas modifiées.
+        - création d'une nouvelle situation
+          administrative.
+
+    L'affectation et l'occupation de poste
+    restent inchangées.
     """
-
-    # =====================================================
-    # Validation
-    # =====================================================
 
     def validate(self):
         """
-        Validation spécifique à la titularisation.
+        Validation spécifique.
         """
 
         super().validate()
 
-        self.titularisation = self.load_evenement_data(
-            "titularisation",
-            Titularisation,
+        self.titularisation = (
+            self.get_evenement_data(
+                "titularisation",
+                Titularisation,
+            )
         )
 
-    # =====================================================
-    # Création de la nouvelle situation
-    # =====================================================
-
-    def create_new_situation(self):
+    def create_situation(self):
         """
-        Crée la nouvelle situation administrative
-        de l'agent.
+        Crée la nouvelle situation
+        administrative.
         """
 
         return creer_situation(
+
             agent=self.agent,
+
             source=self.titularisation,
-            date_effet=self.date_effet,
+
+            situation_courante=self.situation,
+
             evenement=self.evenement,
+
+            date_effet=self.date_effet,
+
         )
+
+    def process(self):
+        """
+        Exécute la titularisation.
+        """
+
+        situation = self.update_situation()
+
+        return {
+            "evenement": self.evenement,
+            "situation": situation,
+        }
 
 
 HandlerRegistry.register(

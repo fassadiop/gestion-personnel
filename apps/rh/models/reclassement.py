@@ -7,6 +7,7 @@ from apps.rh.core.base import BaseStructureModel
 from apps.rh.models.evenement import EvenementCarriere
 
 from apps.rh.models.referentiels import (
+    Corps,
     Grade,
     Classe,
     Echelon,
@@ -35,11 +36,22 @@ class Reclassement(BaseStructureModel):
         help_text="Événement de reclassement.",
     )
 
+    corps = models.ForeignKey(
+        Corps,
+        on_delete=models.PROTECT,
+        related_name="reclassements",
+        verbose_name="Nouveau corps",
+        null=True,
+        blank=True,
+    )
+
     grade = models.ForeignKey(
         Grade,
         on_delete=models.PROTECT,
         related_name="reclassements",
         verbose_name="Nouveau grade",
+        null=True,
+        blank=True,
     )
 
     classe = models.ForeignKey(
@@ -47,6 +59,8 @@ class Reclassement(BaseStructureModel):
         on_delete=models.PROTECT,
         related_name="reclassements",
         verbose_name="Nouvelle classe",
+        null=True,
+        blank=True,
     )
 
     echelon = models.ForeignKey(
@@ -54,6 +68,8 @@ class Reclassement(BaseStructureModel):
         on_delete=models.PROTECT,
         related_name="reclassements",
         verbose_name="Nouvel échelon",
+        null=True,
+        blank=True,
     )
 
     class Meta:

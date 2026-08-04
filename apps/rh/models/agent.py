@@ -1,18 +1,14 @@
 # apps/rh/models/agent.py
 
-from django.db import models
+from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db import models
 
 from apps.rh.core.base import BaseStructureModel
-from apps.rh.models.organisation import Poste, Structure, UniteOrganisationnelle
+from apps.rh.models.organisation import Structure
 from apps.rh.models.referentiels import (
-    Classe,
-    Corps,
-    Echelon,
-    Grade,
     EtatCivil,
-    Pays,
-    PositionAdministrative,
+    Nationalite,
     StatutAgent,
     Sexe,
 )
@@ -81,7 +77,7 @@ class Agent(BaseStructureModel):
     )
 
     nationalite = models.ForeignKey(
-        Pays,
+        Nationalite,
         on_delete=models.PROTECT,
         related_name="agents",
         verbose_name="Nationalité",
@@ -122,6 +118,26 @@ class Agent(BaseStructureModel):
         help_text="Date d'entrée dans la Fonction Publique.",
     )
 
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="agent",
+        verbose_name="Compte utilisateur",
+        help_text="Compte utilisateur associé à l'agent.",
+    )
+
+    structure_racine = models.ForeignKey(
+        Structure,
+        on_delete=models.PROTECT,
+        related_name="agents",
+        verbose_name="Structure racine",
+        help_text="Structure racine propriétaire du dossier de l'agent.",
+        null=True,
+        blank=True,
+    )
+
     class Meta:
         db_table = "rh_agent"
         verbose_name = "Agent"
@@ -133,6 +149,7 @@ class Agent(BaseStructureModel):
             models.Index(fields=["numero_solde"]),
             models.Index(fields=["nom"]),
             models.Index(fields=["prenom"]),
+            models.Index(fields=["structure_racine"]),
         ]
 
         constraints = [
@@ -174,6 +191,44 @@ class Agent(BaseStructureModel):
         )
     
     @property
+    def compteur_conge_actif(self):
+        """
+        Retourne le plus ancien compteur
+        de congé disponible.
+        """
+
+        from apps.rh.models.compteur_conge import (
+            CompteurConge,
+        )
+
+        compteurs = (
+            CompteurConge.objects
+            .filter(
+                decision_conge__evenement__agent=self,
+                actif=True,
+            )
+            .select_related(
+                "decision_conge",
+                "decision_conge__evenement",
+            )
+            .prefetch_related(
+                "mouvements",
+                "mouvements__type_mouvement",
+            )
+            .order_by(
+                "decision_conge__evenement__date_effet",
+            )
+        )
+
+        for compteur in compteurs:
+
+            if not compteur.est_solde:
+
+                return compteur
+
+        return None
+    
+    @property
     def occupation_courante(self):
         """
         Retourne l'occupation de poste en cours.
@@ -185,6 +240,15 @@ class Agent(BaseStructureModel):
             .filter(date_fin__isnull=True)
             .first()
         )
+
+    @property
+    def possede_compte(self):
+        """
+        Indique si l'agent possède
+        un compte utilisateur.
+        """
+
+        return self.user is not None
 
     def clean(self):
         super().clean()
@@ -213,5 +277,3 @@ class Agent(BaseStructureModel):
     def __str__(self):
         identifiant = self.matricule or self.numero_solde
         return f"{identifiant} - {self.nom} {self.prenom}"
-    
-

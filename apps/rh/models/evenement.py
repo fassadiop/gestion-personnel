@@ -2,7 +2,7 @@
 
 from django.db import models
 
-from apps.rh.core.base import BaseLibelleModel, BaseStructureModel
+from apps.rh.core.base import BaseStructureModel
 
 from apps.rh.models.agent import Agent
 from apps.rh.models.referentiels import (
@@ -16,27 +16,30 @@ class EvenementCarriere(BaseStructureModel):
     """
     Événement de carrière.
 
-    Représente toute décision administrative ayant un impact
-    sur la carrière d'un agent.
+    Cette entité constitue le pivot du moteur de carrière.
 
-    L'événement constitue le pivot du SGCP.
+    Chaque acte administratif ayant un impact sur la carrière
+    d'un agent crée un événement de carrière.
 
     Exemples :
 
     - Recrutement
+    - Prise de service initiale
     - Titularisation
     - Affectation
-    - Mutation
+    - Prise de service après affectation
     - Nomination
-    - Promotion
+    - Mutation
     - Reclassement
-    - Avancement
-    - Congé
-    - Absence
-    - Mission
-    - Formation
-    - Sanction
-    - Décoration
+    - Mise à disposition
+    - Détachement
+    - Réintégration
+    - Disponibilité
+    - Suspension
+    - Intérim
+    - Fin d'intérim
+    - Démission
+    - Radiation
     - Retraite
     """
 
@@ -68,8 +71,13 @@ class EvenementCarriere(BaseStructureModel):
         PositionAdministrative,
         on_delete=models.PROTECT,
         related_name="evenements",
+        null=True,
+        blank=True,
         verbose_name="Position administrative",
-        help_text="Position administrative résultant de l'événement.",
+        help_text=(
+            "Position administrative résultant de l'événement "
+            "lorsqu'elle est modifiée."
+        ),
     )
 
     date_effet = models.DateField(
@@ -88,7 +96,7 @@ class EvenementCarriere(BaseStructureModel):
         max_length=150,
         blank=True,
         verbose_name="Numéro de l'acte",
-        help_text="Numéro officiel de l'arrêté, décret, décision ou note.",
+        help_text="Numéro officiel de l'acte administratif.",
     )
 
     date_acte = models.DateField(
@@ -130,13 +138,11 @@ class EvenementCarriere(BaseStructureModel):
         verbose_name = "Événement de carrière"
         verbose_name_plural = "Événements de carrière"
 
-        ordering = [
-            "-date_effet",
-            "-id",
-        ]
+        ordering = (
+            "-created_at",
+        )
 
-        constraints = [
-
+        constraints = (
             models.CheckConstraint(
                 condition=(
                     models.Q(date_fin__isnull=True)
@@ -145,27 +151,26 @@ class EvenementCarriere(BaseStructureModel):
                 ),
                 name="ck_evenement_dates",
             ),
+        )
 
-        ]
-
-        indexes = [
-
+        indexes = (
             models.Index(fields=["agent"]),
-
             models.Index(fields=["type_evenement"]),
-
             models.Index(fields=["statut"]),
-
             models.Index(fields=["position_administrative"]),
-
             models.Index(fields=["date_effet"]),
-
             models.Index(fields=["numero_acte"]),
+            models.Index(fields=["agent", "date_effet"]),
+        )
 
-        ]
+    @property
+    def est_actif(self):
+        """
+        Indique si l'événement est toujours en vigueur.
+        """
+        return self.date_fin is None
 
     def __str__(self):
-
         return (
             f"{self.agent} - "
             f"{self.type_evenement.libelle} "

@@ -365,6 +365,65 @@ class TypeAbsence(BaseLibelleModel):
         ]
 
 
+class TypeMouvementConge(
+    BaseLibelleModel,
+):
+    """
+    Référentiel des types de mouvements
+    applicables au compteur de congé.
+
+    Chaque mouvement représente une opération
+    métier affectant le compteur de congé.
+    """
+
+    sens = models.SmallIntegerField(
+        choices=(
+            (1, "Crédit"),
+            (-1, "Débit"),
+        ),
+        verbose_name="Sens",
+        help_text=(
+            "Sens du mouvement sur le compteur "
+            "de congé."
+        ),
+    )
+
+    class Meta:
+        db_table = "rh_type_mouvement_conge"
+
+        verbose_name = (
+            "Type de mouvement de congé"
+        )
+
+        verbose_name_plural = (
+            "Types de mouvements de congé"
+        )
+
+        ordering = (
+            "libelle",
+        )
+
+        constraints = (
+            models.CheckConstraint(
+                condition=models.Q(
+                    sens__in=(-1, 1)
+                ),
+                name=(
+                    "ck_type_mouvement_conge_sens"
+                ),
+            ),
+        )
+
+        indexes = (
+            models.Index(fields=("code",)),
+            models.Index(fields=("libelle",)),
+            models.Index(fields=("sens",)),
+        )
+
+    def __str__(self):
+        return self.libelle
+
+
 class TypeSanction(BaseLibelleModel):
     """
     Référentiel des types de sanctions disciplinaires.
@@ -721,4 +780,34 @@ class TypeDocumentMedical(BaseLibelleModel):
 
         ordering = [
             "libelle",
+        ]
+
+
+class TypeInaptitudeMedicale(BaseLibelleModel):
+    """
+    Référentiel des types d'inaptitude médicale.
+
+    Ce référentiel permet de classifier les
+    décisions administratives d'inaptitude
+    ayant une incidence sur la carrière.
+    """
+
+    class Meta:
+        db_table = "rh_type_inaptitude_medicale"
+
+        verbose_name = (
+            "Type d'inaptitude médicale"
+        )
+
+        verbose_name_plural = (
+            "Types d'inaptitude médicale"
+        )
+
+        ordering = [
+            "libelle",
+        ]
+
+        indexes = [
+            models.Index(fields=["code"]),
+            models.Index(fields=["libelle"]),
         ]

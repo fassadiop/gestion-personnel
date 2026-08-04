@@ -11,40 +11,50 @@ Description :
     situation administrative d'un agent.
 
 Auteur : SGCP
-Version : 1.0
+Version : 2.0
 ==========================================================
 """
 
-from datetime import timedelta
 from abc import abstractmethod
+from datetime import timedelta
 
-from apps.rh.services.evenements.base import BaseEvenementHandler
+from apps.rh.services.evenements.base import (
+    BaseEvenementHandler,
+)
+
 from apps.rh.services.evenements.exceptions import (
     SituationAdministrativeError,
 )
 
+from apps.rh.services.evenements.utils import (
+    cloturer_situation,
+)
 
-class BaseStatutHandler(BaseEvenementHandler):
+
+class BaseStatutHandler(
+    BaseEvenementHandler,
+):
     """
     Classe de base des événements modifiant
-    le statut administratif d'un agent.
+    la situation administrative d'un agent.
 
     Cette classe mutualise les traitements
-    communs aux événements tels que :
+    communs aux événements suivants :
 
         - Titularisation
-        - Promotion
-        - Avancement
+        - Nomination
         - Reclassement
-        - Changement de corps
-        - Changement de grade
+        - Mise à disposition
+        - Détachement
+        - Réintégration
+        - Disponibilité
+        - Démission
+        - Radiation
+        - Retraite
 
-    Cycle métier :
-
-        1. récupérer la situation courante ;
-        2. la clôturer ;
-        3. créer la nouvelle situation ;
-        4. construire le contexte.
+    Le recrutement n'utilise pas cette classe
+    puisqu'il ne possède pas de situation
+    administrative à clôturer.
     """
 
     # =====================================================
@@ -58,68 +68,37 @@ class BaseStatutHandler(BaseEvenementHandler):
 
         super().validate()
 
-        self.situation_courante = (
-            self.agent.situation_administrative_courante
-        )
-
-        if self.situation_courante is None:
+        if self.situation is None:
             raise SituationAdministrativeError(
-                "Aucune situation administrative courante n'a été trouvée."
+                "Aucune situation administrative "
+                "courante n'a été trouvée."
             )
 
     # =====================================================
     # Traitement
     # =====================================================
 
-    def process(self):
+    def update_situation(self):
         """
-        Traitement générique.
+        Clôture la situation administrative
+        courante puis crée la nouvelle.
         """
 
-        ancienne = self.close_current_situation()
-
-        nouvelle = self.create_new_situation()
-
-        self.context.update(
-            {
-                "ancienne_situation": ancienne,
-                "nouvelle_situation": nouvelle,
-            }
+        cloturer_situation(
+            self.situation,
+            self.date_effet - timedelta(days=1),
         )
 
-        return self.context
-
-    # =====================================================
-    # Méthodes communes
-    # =====================================================
-
-    def close_current_situation(self):
-        """
-        Clôture la situation administrative courante.
-        """
-
-        self.situation_courante.date_fin = (
-            self.date_effet - timedelta(days=1)
-        )
-
-        self.situation_courante.est_courante = False
-
-        self.situation_courante.save(
-            update_fields=[
-                "date_fin",
-                "est_courante",
-            ]
-        )
-
-        return self.situation_courante
+        return self.create_situation()
 
     # =====================================================
     # Méthodes à implémenter
     # =====================================================
 
     @abstractmethod
-    def create_new_situation(self):
+    def create_situation(self):
         """
-        Crée la nouvelle situation administrative.
+        Crée la nouvelle situation
+        administrative.
         """
         raise NotImplementedError

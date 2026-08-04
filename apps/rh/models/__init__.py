@@ -28,3 +28,10 @@ from .affectation import *
 from .absence import *
 from .reintegration import *
 from .base import *
+from .prise_service_initiale import *
+from .prise_service_affectation import *
+from .mise_a_disposition import *
+from .disponibilite import *
+from .interim import *
+from .fin_interim import *
+from .radiation import *

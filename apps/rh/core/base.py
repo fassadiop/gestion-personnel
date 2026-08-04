@@ -17,6 +17,9 @@ from __future__ import annotations
 from django.db import models
 
 from django.db.models import F, Q
+from apps.rh.services.documents.metadata import (
+    DocumentMetadataService,
+)
 
 
 class BaseModel(models.Model):
@@ -115,6 +118,44 @@ class BaseDocument(BaseModel):
     class Meta:
         abstract = True
 
+    def save(self, *args, **kwargs):
+        """
+        Enregistre automatiquement les métadonnées techniques
+        associées au fichier documentaire.
+        """
+
+        if self.fichier:
+            metadata = DocumentMetadataService.extraire(
+                self.fichier
+            )
+
+            self.nom_fichier = metadata.get(
+                "nom_fichier",
+                "",
+            )
+
+            self.extension = metadata.get(
+                "extension",
+                "",
+            )
+
+            self.taille = metadata.get(
+                "taille",
+                0,
+            )
+
+            self.mime_type = metadata.get(
+                "mime_type",
+                "",
+            )
+
+            self.hash_document = metadata.get(
+                "hash_document",
+                "",
+            )
+
+        super().save(*args, **kwargs)
+
     @property
     def nom_complet(self):
         """
@@ -206,6 +247,7 @@ class BaseLibelleModel(BaseReferentielModel):
     code = models.CharField(
         max_length=30,
         verbose_name="Code",
+        unique=True,
         help_text="Code unique du référentiel.",
     )
 

@@ -8,103 +8,130 @@ Description :
     Handler d'affectation.
 
 Auteur : SGCP
-Version : 1.0
+Version : 2.1
 ==========================================================
 """
 
 from apps.rh.models.affectation import (
-    Affectation as AffectationEvenement
+    Affectation as AffectationEvenement,
 )
 
+from apps.rh.services.evenements.base import BaseEvenementHandler
 from apps.rh.services.evenements.handlers.base_affectation import (
     BaseAffectationHandler,
 )
+
 from apps.rh.services.evenements.exceptions import (
     EvenementInvalideError,
 )
-from apps.rh.services.evenements.registry import HandlerRegistry
+
+from apps.rh.services.evenements.registry import (
+    HandlerRegistry,
+)
+
 from apps.rh.services.evenements.utils import (
-    creer_affectation,
     creer_occupation,
 )
 
 
-class AffectationHandler(BaseAffectationHandler):
+class AffectationHandler(
+    BaseAffectationHandler,
+):
     """
     Handler d'affectation.
-
-    Une affectation modifie l'affectation administrative
-    d'un agent et, le cas échéant, son occupation de poste.
 
     Conséquences métier :
 
         - clôture de l'affectation courante ;
-        - clôture de l'occupation de poste courante ;
-        - création d'une nouvelle affectation ;
-        - création éventuelle d'une nouvelle occupation.
-    """
 
-    # =====================================================
-    # Validation
-    # =====================================================
+        - activation de l'affectation
+          préparée lors de la création
+          de l'événement.
+
+    La situation administrative et
+    l'occupation de poste restent inchangées.
+    """
 
     def validate(self):
         """
-        Validation spécifique à l'affectation.
+        Validation spécifique.
         """
 
-        super().validate()
+        BaseEvenementHandler.validate(self)
 
-        self.affectation = self.load_evenement_data(
-            "affectation",
-            AffectationEvenement,
+        self.affectation_evenement = (
+            self.get_evenement_data(
+                "affectation",
+                AffectationEvenement,
+            )
         )
 
-        if not self.affectation.structure:
+        if (
+            self.affectation_evenement.structure
+            is None
+        ):
             raise EvenementInvalideError(
                 "La structure est obligatoire."
             )
 
-        if not self.affectation.unite:
-            raise EvenementInvalideError(
-                "L'unité organisationnelle est obligatoire."
-            )
-
-    # =====================================================
-    # Création de la nouvelle affectation
-    # =====================================================
-
-    def create_new_affectation(self):
+    def activate_affectation(self):
         """
-        Crée la nouvelle affectation.
+        Rend effective l'affectation
+        préparée lors de la création
+        de l'événement.
         """
 
-        return creer_affectation(
-            agent=self.agent,
-            source=self.affectation,
-            evenement=self.evenement,
+        self.affectation_evenement.est_courante = True
+
+        self.affectation_evenement.save(
+            update_fields=[
+                "est_courante",
+                "updated_at",
+            ]
         )
 
-    # =====================================================
-    # Création de la nouvelle occupation
-    # =====================================================
+        return self.affectation_evenement
 
-    def create_new_occupation(self):
+    def create_occupation(self):
         """
-        Crée la nouvelle occupation de poste.
+        Crée l'occupation de poste correspondant
+        à l'affectation.
 
         Retourne None lorsqu'aucun poste
         n'est renseigné.
         """
 
-        if not self.affectation.poste:
-            return None
-
         return creer_occupation(
             agent=self.agent,
-            source=self.affectation,
+            poste=self.affectation_evenement.poste,
             evenement=self.evenement,
+            date_debut=self.date_effet,
         )
+
+    def process(self):
+        """
+        Exécute l'affectation.
+        """
+
+        if self.affectation is None:
+
+            affectation = self.activate_affectation()
+
+        else:
+
+            affectation = self.update_affectation()
+
+        occupation = None
+
+        if self.affectation_evenement.poste is not None:
+
+            occupation = self.update_occupation()
+
+        return {
+            "evenement": self.evenement,
+            "affectation": affectation,
+            "occupation": occupation,
+        }
 
 
 HandlerRegistry.register(

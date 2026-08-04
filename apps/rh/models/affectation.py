@@ -9,10 +9,10 @@ class Affectation(BaseStructureModel):
     Historique des affectations d'un agent.
     """
 
-    evenement = models.ForeignKey(
+    evenement = models.OneToOneField(
         "EvenementCarriere",
-        on_delete=models.PROTECT,
-        related_name="affectations",
+        on_delete=models.CASCADE,
+        related_name="affectation",
         verbose_name="Événement de carrière",
     )
 
@@ -35,6 +35,8 @@ class Affectation(BaseStructureModel):
         on_delete=models.PROTECT,
         related_name="affectations",
         verbose_name="Unité organisationnelle",
+        null=True,
+        blank=True,
     )
 
     poste = models.ForeignKey(
@@ -46,18 +48,8 @@ class Affectation(BaseStructureModel):
         blank=True,
     )
 
-    date_prise_service = models.DateField(
-        verbose_name="Date de prise de service",
-    )
-
-    date_fin = models.DateField(
-        null=True,
-        blank=True,
-        verbose_name="Date de fin",
-    )
-
     est_courante = models.BooleanField(
-        default=True,
+        default=False,
         verbose_name="Affectation courante",
     )
 
@@ -65,15 +57,6 @@ class Affectation(BaseStructureModel):
         db_table = "rh_affectation"
         verbose_name = "Affectation"
         verbose_name_plural = "Affectations"
-        ordering = ["-date_prise_service"]
-
-        constraints = [
-            models.CheckConstraint(
-                condition=models.Q(date_fin__isnull=True)
-                | models.Q(date_fin__gte=models.F("date_prise_service")),
-                name="ck_affectation_dates",
-            ),
-        ]
 
         indexes = [
             models.Index(fields=["agent"]),

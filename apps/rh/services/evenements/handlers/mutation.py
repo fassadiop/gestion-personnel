@@ -8,101 +8,94 @@ Description :
     Handler de mutation.
 
 Auteur : SGCP
-Version : 1.0
+Version : 2.0
 ==========================================================
 """
 
-from apps.rh.models.mutation import Mutation
+from apps.rh.models.mutation import (
+    Mutation,
+)
 
 from apps.rh.services.evenements.handlers.base_affectation import (
     BaseAffectationHandler,
 )
+
 from apps.rh.services.evenements.exceptions import (
     EvenementInvalideError,
 )
-from apps.rh.services.evenements.registry import HandlerRegistry
+
+from apps.rh.services.evenements.registry import (
+    HandlerRegistry,
+)
+
 from apps.rh.services.evenements.utils import (
     creer_affectation,
-    creer_occupation,
 )
 
 
-class MutationHandler(BaseAffectationHandler):
+class MutationHandler(
+    BaseAffectationHandler,
+):
     """
     Handler de mutation.
-
-    Une mutation entraîne un changement
-    d'affectation de l'agent.
 
     Conséquences métier :
 
         - clôture de l'affectation courante ;
-        - clôture de l'occupation de poste courante ;
-        - création d'une nouvelle affectation ;
-        - création éventuelle d'une nouvelle occupation.
-    """
 
-    # =====================================================
-    # Validation
-    # =====================================================
+        - création d'une nouvelle affectation.
+
+    La situation administrative et
+    l'occupation de poste restent inchangées.
+    """
 
     def validate(self):
         """
-        Validation spécifique à la mutation.
+        Validation spécifique.
         """
 
         super().validate()
 
-        self.mutation = self.load_evenement_data(
-            "mutation",
-            Mutation,
+        self.mutation = (
+            self.get_evenement_data(
+                "mutation",
+                Mutation,
+            )
         )
 
-        if not self.mutation.structure:
+        if self.mutation.structure is None:
             raise EvenementInvalideError(
                 "La structure de destination est obligatoire."
             )
 
-        if not self.mutation.unite:
-            raise EvenementInvalideError(
-                "L'unité organisationnelle de destination est obligatoire."
-            )
-
-    # =====================================================
-    # Création de la nouvelle affectation
-    # =====================================================
-
-    def create_new_affectation(self):
+    def create_affectation(self):
         """
         Crée la nouvelle affectation.
         """
 
         return creer_affectation(
+
             agent=self.agent,
+
             source=self.mutation,
+
             evenement=self.evenement,
+
         )
 
-    # =====================================================
-    # Création de la nouvelle occupation
-    # =====================================================
-
-    def create_new_occupation(self):
+    def process(self):
         """
-        Crée la nouvelle occupation de poste.
-
-        Retourne None lorsqu'aucun poste
-        n'est concerné.
+        Exécute la mutation.
         """
 
-        if not self.mutation.poste:
-            return None
-
-        return creer_occupation(
-            agent=self.agent,
-            source=self.mutation,
-            evenement=self.evenement,
+        affectation = (
+            self.update_affectation()
         )
+
+        return {
+            "evenement": self.evenement,
+            "affectation": affectation,
+        }
 
 
 HandlerRegistry.register(

@@ -1,4 +1,6 @@
-﻿"""
+﻿# apps/rh/services/evenements/exceptions.py
+
+"""
 ==========================================================
 SGCP - Système de Gestion de Carrière du Personnel
 
@@ -85,7 +87,7 @@ class DocumentAdministratifError(EvenementError):
     pass
 
 
-class HandlerAlreadyRegisteredError(Exception):
+class HandlerAlreadyRegisteredError(EvenementError):
     """
     Levée lorsqu'un handler est enregistré
     plusieurs fois.
@@ -93,7 +95,7 @@ class HandlerAlreadyRegisteredError(Exception):
     pass
 
 
-class HandlerNotFoundError(Exception):
+class HandlerNotFoundError(EvenementError):
     """
     Levée lorsqu'aucun handler n'existe
     pour un type d'événement.

@@ -24,7 +24,7 @@ class DecisionConge(BaseModel):
 
     evenement = models.OneToOneField(
         EvenementCarriere,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="decision_conge",
         verbose_name="Événement de carrière",
         help_text="Événement de carrière associé à cette décision.",
@@ -49,35 +49,31 @@ class DecisionConge(BaseModel):
         verbose_name = "Décision de congé"
         verbose_name_plural = "Décisions de congé"
 
-        ordering = [
+        ordering = (
             "-evenement__date_effet",
             "type_conge__libelle",
-        ]
+        )
 
-        constraints = [
-
+        constraints = (
             models.CheckConstraint(
                 condition=models.Q(
                     nombre_jours_accordes__gt=0
                 ),
                 name="ck_decision_conge_nombre_jours_positif",
             ),
+        )
 
-        ]
-
-        indexes = [
-
-            models.Index(fields=["type_conge"]),
-
-        ]
+        indexes = (
+            models.Index(fields=("type_conge",)),
+        )
 
     def __str__(self):
         return (
             f"{self.type_conge.libelle} - "
             f"{self.agent}"
         )
-    
-        # ==========================================================
+
+    # ==========================================================
     # PROPRIÉTÉS MÉTIER
     # ==========================================================
 
@@ -118,7 +114,7 @@ class DecisionConge(BaseModel):
         """
         return (
             self.conges
-            .all()
+            .filter(actif=True)
             .order_by("date_cessation_service")
         )
 
@@ -138,9 +134,10 @@ class DecisionConge(BaseModel):
         """
         Nombre de jours restant à consommer.
         """
-        return (
+        return max(
+            0,
             self.nombre_jours_accordes
-            - self.nombre_jours_consommes
+            - self.nombre_jours_consommes,
         )
 
     @property
@@ -149,4 +146,4 @@ class DecisionConge(BaseModel):
         Indique si tous les jours accordés
         ont été consommés.
         """
-        return self.reliquat <= 0
+        return self.reliquat == 0

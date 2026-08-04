@@ -12,36 +12,20 @@ Description :
     Cette classe constitue le point d'entrée unique
     de l'exécution des événements de carrière.
 
-    Responsabilités :
-        - Vérifier les paramètres d'entrée.
-        - Résoudre le validator approprié.
-        - Exécuter les validations métier.
-        - Résoudre le handler approprié.
-        - Encadrer le traitement dans une transaction.
-        - Retourner le résultat du traitement.
-
 Auteur : SGCP
-Version : 1.1
+Version : 2.3
 ==========================================================
 """
 
-# ==========================================================
-# Chargement automatique des registres
-# ==========================================================
+from django.db import transaction
 
-# Force le chargement des handlers afin
-# d'alimenter automatiquement le HandlerRegistry.
+# Chargement automatique des handlers afin
+# d'alimenter le HandlerRegistry.
 from apps.rh.services.evenements import handlers  # noqa: F401
 
-# Force le chargement des validators afin
-# d'alimenter automatiquement le ValidatorRegistry.
-from apps.rh.services.evenements import validators  # noqa: F401
-
-# ==========================================================
-# Imports
-# ==========================================================
-
-from django.db import transaction
+from apps.rh.services.evenements.context import (
+    ExecutionContext,
+)
 
 from apps.rh.services.evenements.exceptions import (
     EvenementInvalideError,
@@ -51,120 +35,163 @@ from apps.rh.services.evenements.registry import (
     HandlerRegistry,
 )
 
-from apps.rh.services.evenements.validators.registry import (
-    ValidatorRegistry,
-)
-
 
 class ValidationEvenementService:
     """
-    Orchestrateur principal du moteur de carrière.
+    Orchestrateur du moteur de carrière.
 
-    Cette classe ne contient aucune règle métier.
+    Responsabilités :
 
-    Elle coordonne simplement les différentes
-    étapes du traitement d'un événement.
+        • Vérifier les paramètres d'entrée.
+        • Construire le contexte d'exécution.
+        • Résoudre le handler adapté.
+        • Ouvrir une transaction.
+        • Exécuter le handler.
+        • Déclencher les hooks techniques.
+
+    Aucune règle métier ne doit être
+    implémentée ici.
     """
 
-    def executer(self, evenement):
+    @transaction.atomic
+    def executer(
+        self,
+        *,
+        evenement,
+        utilisateur=None,
+        request=None,
+    ):
         """
-        Valide puis exécute un événement de carrière.
-
-        Étapes :
-            1. Vérification des paramètres.
-            2. Résolution du validator.
-            3. Validation métier.
-            4. Résolution du handler.
-            5. Exécution du traitement.
-            6. Retour du résultat.
-
-        Args:
-            evenement:
-                Instance de EvenementCarriere.
-
-        Returns:
-            Résultat retourné par le handler.
+        Exécute un événement de carrière.
         """
 
-        # ==================================================
-        # Vérification des paramètres
-        # ==================================================
+        self._validate_input(
+            evenement,
+        )
+
+        context = ExecutionContext(
+
+            evenement=evenement,
+
+            utilisateur=utilisateur,
+
+            request=request,
+
+        )
+
+        handler = self._get_handler(
+            context,
+        )
+
+        self._before_execute(
+            context,
+            handler,
+        )
+
+        result = handler.execute()
+
+        self._after_execute(
+            context,
+            handler,
+            result,
+        )
+
+        return result
+
+    # =====================================================
+    # Résolution du handler
+    # =====================================================
+
+    def _get_handler(
+        self,
+        context,
+    ):
+        """
+        Retourne le handler correspondant.
+        """
+
+        return HandlerRegistry.get_handler(
+            context,
+        )
+
+    # =====================================================
+    # Validation technique
+    # =====================================================
+
+    def _validate_input(
+        self,
+        evenement,
+    ):
+        """
+        Vérifie les paramètres d'entrée.
+        """
 
         if evenement is None:
             raise EvenementInvalideError(
                 "Aucun événement fourni."
             )
 
-        # ==================================================
-        # Résolution du validator
-        # ==================================================
+        if evenement.pk is None:
+            raise EvenementInvalideError(
+                "L'événement doit être enregistré "
+                "avant son exécution."
+            )
 
-        validator = ValidatorRegistry.get_validator(
-            evenement
-        )
+        if evenement.agent is None:
+            raise EvenementInvalideError(
+                "Aucun agent associé à l'événement."
+            )
 
-        # ==================================================
-        # Validation métier
-        # ==================================================
+        if evenement.type_evenement is None:
+            raise EvenementInvalideError(
+                "Le type d'événement est obligatoire."
+            )
 
-        validator.validate(evenement)
+        if evenement.date_effet is None:
+            raise EvenementInvalideError(
+                "La date d'effet est obligatoire."
+            )
 
-        # ==================================================
-        # Résolution du handler
-        # ==================================================
+        if not evenement.actif:
+            raise EvenementInvalideError(
+                "L'événement est inactif."
+            )
 
-        handler = HandlerRegistry.get_handler(
-            evenement
-        )
-
-        # ==================================================
-        # Hook avant traitement
-        # ==================================================
-
-        self._before_execute(evenement)
-
-        # ==================================================
-        # Traitement transactionnel
-        # ==================================================
-
-        with transaction.atomic():
-
-            result = handler.execute()
-
-        # ==================================================
-        # Hook après traitement
-        # ==================================================
-
-        self._after_execute(
-            evenement,
-            result,
-        )
-
-        return result
-
-    # ======================================================
+    # =====================================================
     # Hooks
-    # ======================================================
+    # =====================================================
 
-    def _before_execute(self, evenement):
+    def _before_execute(
+        self,
+        context,
+        handler,
+    ):
         """
         Hook exécuté avant le traitement.
 
-        Réservé aux évolutions futures :
-            - journalisation
-            - workflow
-            - contrôles complémentaires
+        Réservé aux futures évolutions :
+
+            • Audit
+            • Journalisation
+            • Workflow
+            • Sécurité
         """
         pass
 
-    def _after_execute(self, evenement, result):
+    def _after_execute(
+        self,
+        context,
+        handler,
+        result,
+    ):
         """
         Hook exécuté après le traitement.
 
-        Réservé aux évolutions futures :
-            - audit
-            - notifications
-            - statistiques
-            - bus d'événements
+        Réservé aux futures évolutions :
+
+            • Notifications
+            • Bus d'événements
+            • Statistiques
+            • Signature électronique
         """
         pass

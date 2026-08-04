@@ -37,6 +37,16 @@ class Absence(BaseEvenementModel):
         help_text="Dernier jour d'absence autorisé.",
     )
 
+    jours_deductibles = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name="Jours déductibles",
+        help_text=(
+            "Nombre de jours imputables sur le "
+            "compteur de congé conformément à "
+            "l'autorisation d'absence."
+        ),
+    )
+
     motif = models.TextField(
         blank=True,
         default="",

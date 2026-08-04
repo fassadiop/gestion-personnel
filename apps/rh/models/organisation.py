@@ -81,6 +81,16 @@ class Structure(BaseStructureModel):
         help_text="Type de la structure.",
     )
 
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="enfants",
+        verbose_name="Structure parente",
+        help_text="Structure de rattachement dans l'organisation administrative.",
+    )
+
     code = models.CharField(
         max_length=30,
         verbose_name="Code",
@@ -149,6 +159,7 @@ class Structure(BaseStructureModel):
             models.Index(fields=["code"]),
             models.Index(fields=["nom"]),
             models.Index(fields=["sigle"]),
+            models.Index(fields=["parent"]),
         ]
 
     def __str__(self):
@@ -275,6 +286,8 @@ class Poste(BaseStructureModel):
         related_name="postes",
         verbose_name="Unité organisationnelle",
         help_text="Unité organisationnelle de rattachement.",
+        null=True,
+        blank=True,
     )
 
     code = models.CharField(
@@ -331,6 +344,7 @@ class Poste(BaseStructureModel):
             ),
             models.UniqueConstraint(
                 fields=["unite", "libelle"],
+                condition=models.Q(unite__isnull=False),
                 name="uq_poste_unite_libelle",
             ),
         ]

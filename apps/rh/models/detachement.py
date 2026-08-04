@@ -1,5 +1,3 @@
-# apps/rh/models/detachement.py
-
 from django.db import models
 
 from apps.rh.core.base import BaseStructureModel
@@ -8,23 +6,19 @@ from apps.rh.models.evenement import EvenementCarriere
 from apps.rh.models.organisation import (
     Structure,
     UniteOrganisationnelle,
-    Poste,
 )
-from apps.rh.models.referentiels import PositionAdministrative
 
 
 class Detachement(BaseStructureModel):
     """
-    Informations spécifiques à un détachement.
+    Détachement.
 
-    Le détachement place temporairement un agent
-    dans une autre position administrative.
+    Correspond au détachement temporaire d'un
+    agent auprès d'une autre administration
+    ou organisme.
 
-    Il peut être accompagné d'une nouvelle
-    affectation dans une structure d'accueil.
-
-    Ce modèle ne contient que les informations
-    de destination.
+    Cet événement modifie la position
+    administrative de l'agent.
     """
 
     evenement = models.OneToOneField(
@@ -32,49 +26,47 @@ class Detachement(BaseStructureModel):
         on_delete=models.CASCADE,
         related_name="detachement",
         verbose_name="Événement de carrière",
-        help_text="Événement de détachement.",
+        help_text="Événement de carrière associé.",
     )
 
-    position_administrative = models.ForeignKey(
-        PositionAdministrative,
-        on_delete=models.PROTECT,
-        related_name="detachements",
-        verbose_name="Position administrative",
+    organisme_accueil = models.CharField(
+        max_length=255,
+        verbose_name="Organisme d'accueil",
+        help_text="Administration ou organisme d'accueil.",
+        null=True,
+        blank=True,
     )
 
     structure = models.ForeignKey(
         Structure,
         on_delete=models.PROTECT,
         related_name="detachements",
+        null=True,
+        blank=True,
         verbose_name="Structure d'accueil",
+        help_text="Structure d'accueil si elle est gérée dans le SGCP.",
     )
 
     unite = models.ForeignKey(
         UniteOrganisationnelle,
         on_delete=models.PROTECT,
         related_name="detachements",
-        verbose_name="Unité d'accueil",
         null=True,
         blank=True,
-    )
-
-    poste = models.ForeignKey(
-        Poste,
-        on_delete=models.PROTECT,
-        related_name="detachements",
-        verbose_name="Poste occupé",
-        null=True,
-        blank=True,
+        verbose_name="Unité organisationnelle",
+        help_text="Unité organisationnelle d'accueil.",
     )
 
     date_debut = models.DateField(
         verbose_name="Date de début",
-        help_text="Date de prise d'effet du détachement.",
+        help_text="Date de début du détachement.",
     )
 
-    date_fin_prevue = models.DateField(
-        verbose_name="Date de fin prévisionnelle",
-        help_text="Date prévue de fin du détachement.",
+    date_fin = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Date de fin",
+        help_text="Date de fin prévue du détachement.",
     )
 
     class Meta:
@@ -83,37 +75,35 @@ class Detachement(BaseStructureModel):
         verbose_name = "Détachement"
         verbose_name_plural = "Détachements"
 
-        ordering = [
+        ordering = (
             "-date_debut",
             "-id",
-        ]
+        )
 
-        constraints = [
-
+        constraints = (
             models.CheckConstraint(
-                condition=models.Q(
-                    date_fin_prevue__gte=models.F("date_debut")
+                condition=(
+                    models.Q(date_fin__isnull=True)
+                    |
+                    models.Q(
+                        date_fin__gte=models.F("date_debut")
+                    )
                 ),
                 name="ck_detachement_dates",
             ),
+        )
 
-        ]
-
-        indexes = [
-
-            models.Index(fields=["position_administrative"]),
-
-            models.Index(fields=["structure"]),
-
-            models.Index(fields=["poste"]),
-
-            models.Index(fields=["date_debut"]),
-
-            models.Index(fields=["date_fin_prevue"]),
-
-        ]
+        indexes = (
+            models.Index(fields=("evenement",)),
+            models.Index(fields=("organisme_accueil",)),
+            models.Index(fields=("structure",)),
+            models.Index(fields=("unite",)),
+            models.Index(fields=("date_debut",)),
+            models.Index(fields=("date_fin",)),
+        )
 
     def __str__(self):
         return (
-            f"Détachement de {self.evenement.agent}"
+            f"{self.evenement.agent} - "
+            f"{self.organisme_accueil}"
         )

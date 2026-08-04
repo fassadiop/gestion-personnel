@@ -1,36 +1,50 @@
 # apps/rh/models/retraite.py
 
-from django.db import models
+"""
+==========================================================
+SGCP - Système de Gestion de Carrière du Personnel
 
-from apps.rh.models.base_evenement import BaseEvenementModel
+Fichier : apps/rh/models/retraite.py
 
-from apps.rh.models.referentiels import PositionAdministrative
-
-
-class Retraite(BaseEvenementModel):
-    """
+Description :
     Informations spécifiques à une retraite.
 
-    La retraite met définitivement fin à la
-    carrière administrative de l'agent.
+Auteur : SGCP
+Version : 2.0
+==========================================================
+"""
 
-    Elle entraîne une nouvelle situation
-    administrative sans création d'une
-    nouvelle affectation ni d'une nouvelle
-    occupation de poste.
+from django.db import models
+
+from apps.rh.core.base import BaseStructureModel
+
+from apps.rh.models.evenement import EvenementCarriere
+
+
+class Retraite(BaseStructureModel):
+    """
+    Retraite.
+
+    Correspond au départ définitif d'un agent
+    admis à faire valoir ses droits à la retraite.
+
+    Cet événement met fin définitivement
+    à la carrière administrative de l'agent.
     """
 
-    position_administrative = models.ForeignKey(
-        PositionAdministrative,
-        on_delete=models.PROTECT,
-        related_name="retraites",
-        verbose_name="Position administrative",
-        help_text="Position administrative correspondant à la retraite.",
+    evenement = models.OneToOneField(
+        EvenementCarriere,
+        on_delete=models.CASCADE,
+        related_name="retraite",
+        verbose_name="Événement de carrière",
+        help_text="Événement de carrière associé.",
     )
 
-    date_depart = models.DateField(
-        verbose_name="Date de départ à la retraite",
-        help_text="Date effective de départ à la retraite.",
+    motif = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Motif",
+        help_text="Motif de la retraite.",
     )
 
     class Meta:
@@ -39,21 +53,19 @@ class Retraite(BaseEvenementModel):
         verbose_name = "Retraite"
         verbose_name_plural = "Retraites"
 
-        ordering = [
-            "-date_depart",
+        ordering = (
             "-id",
-        ]
+        )
 
-        indexes = [
+        indexes = (
 
-            models.Index(fields=["position_administrative"]),
+            models.Index(
+                fields=("evenement",),
+            ),
 
-            models.Index(fields=["date_depart"]),
-
-        ]
+        )
 
     def __str__(self):
-
         return (
-            f"Retraite de {self.evenement.agent}"
+            f"{self.evenement.agent}"
         )

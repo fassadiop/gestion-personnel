@@ -1,3 +1,5 @@
+# apps/rh/services/evenements/handlers/base_affectation.py
+
 """
 ==========================================================
 SGCP - Système de Gestion de Carrière du Personnel
@@ -9,7 +11,7 @@ Description :
     l'affectation d'un agent.
 
 Auteur : SGCP
-Version : 1.0
+Version : 2.1
 ==========================================================
 """
 
@@ -19,34 +21,35 @@ from datetime import timedelta
 from apps.rh.services.evenements.base import (
     BaseEvenementHandler,
 )
+
 from apps.rh.services.evenements.exceptions import (
     AffectationError,
 )
 
+from apps.rh.services.evenements.utils import (
+    cloturer_affectation,
+    cloturer_occupation,
+)
 
-class BaseAffectationHandler(BaseEvenementHandler):
+
+class BaseAffectationHandler(
+    BaseEvenementHandler,
+):
     """
-    Classe de base des événements de mobilité.
+    Classe de base des événements modifiant
+    l'affectation d'un agent.
 
-    Cette classe mutualise les traitements communs
-    aux événements modifiant l'affectation
-    d'un agent.
-
-    Exemples :
+    Cette classe mutualise les traitements
+    communs aux événements suivants :
 
         - Affectation
         - Mutation
-        - Nomination (si changement de poste)
 
-    Cycle métier :
+    Les données spécialisées sont créées
+    lors de la création de l'événement.
 
-        1. récupérer l'affectation courante ;
-        2. récupérer l'occupation du poste ;
-        3. clôturer l'affectation courante ;
-        4. clôturer l'occupation du poste ;
-        5. créer la nouvelle affectation ;
-        6. créer la nouvelle occupation ;
-        7. construire le contexte.
+    Le handler se contente de rendre
+    l'affectation effective.
     """
 
     # =====================================================
@@ -60,117 +63,64 @@ class BaseAffectationHandler(BaseEvenementHandler):
 
         super().validate()
 
-        self.affectation_courante = (
-            self.agent.affectation_courante
-        )
-
-        if self.affectation_courante is None:
+        if self.affectation is None:
             raise AffectationError(
-                "Aucune affectation courante n'a été trouvée."
+                "Aucune affectation courante "
+                "n'a été trouvée."
             )
 
-        self.occupation_courante = (
-            self.agent.occupation_courante
-        )
-
     # =====================================================
-    # Traitement
+    # Traitements communs
     # =====================================================
 
-    def process(self):
+    def update_affectation(self):
         """
-        Traitement générique des événements
-        de mobilité.
-        """
-
-        ancienne_affectation = (
-            self.close_affectation()
-        )
-
-        ancienne_occupation = (
-            self.close_occupation()
-        )
-
-        nouvelle_affectation = (
-            self.create_new_affectation()
-        )
-
-        nouvelle_occupation = (
-            self.create_new_occupation()
-        )
-
-        self.context.update(
-            {
-                "ancienne_affectation": ancienne_affectation,
-                "ancienne_occupation": ancienne_occupation,
-                "nouvelle_affectation": nouvelle_affectation,
-                "nouvelle_occupation": nouvelle_occupation,
-            }
-        )
-
-        return self.context
-
-    # =====================================================
-    # Méthodes communes
-    # =====================================================
-
-    def close_affectation(self):
-        """
-        Clôture l'affectation courante.
+        Clôture l'affectation courante
+        puis rend effective la nouvelle.
         """
 
-        self.affectation_courante.date_fin = (
-            self.date_effet - timedelta(days=1)
+        cloturer_affectation(
+            self.affectation,
         )
 
-        self.affectation_courante.est_courante = False
+        return self.activate_affectation()
 
-        self.affectation_courante.save(
-            update_fields=[
-                "date_fin",
-                "est_courante",
-            ]
-        )
-
-        return self.affectation_courante
-
-    def close_occupation(self):
+    def update_occupation(self):
         """
-        Clôture l'occupation courante du poste.
+        Clôture l'occupation principale
+        puis crée la nouvelle.
+
+        Les occupations d'intérim ne sont
+        jamais concernées.
         """
 
-        if self.occupation_courante is None:
-            return None
-
-        self.occupation_courante.date_fin = (
-            self.date_effet - timedelta(days=1)
+        cloturer_occupation(
+            self.occupation,
+            self.date_effet - timedelta(days=1),
         )
 
-        self.occupation_courante.save(
-            update_fields=[
-                "date_fin",
-            ]
-        )
-
-        return self.occupation_courante
+        return self.create_occupation()
 
     # =====================================================
     # Méthodes à implémenter
     # =====================================================
 
     @abstractmethod
-    def create_new_affectation(self):
+    def activate_affectation(self):
         """
-        Crée la nouvelle affectation.
+        Rend effective l'affectation
+        préparée lors de la création
+        de l'événement.
         """
         raise NotImplementedError
 
-    @abstractmethod
-    def create_new_occupation(self):
+    def create_occupation(self):
         """
-        Crée la nouvelle occupation du poste.
+        Crée la nouvelle occupation
+        de poste.
 
-        Peut retourner None lorsqu'aucun poste
+        Retourne None lorsqu'aucun poste
         n'est concerné.
         """
-        raise NotImplementedError
+
+        return None

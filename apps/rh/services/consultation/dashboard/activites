@@ -1,0 +1,21 @@
+from apps.rh.models import EvenementCarriere
+
+
+class DashboardActiviteService:
+    """
+    Service des activités récentes du tableau de bord.
+    """
+
+    LIMITE = 10
+
+    @classmethod
+    def execute(cls):
+        return (
+            EvenementCarriere.objects
+            .select_related(
+                "agent",
+                "type_evenement",
+                "statut",
+            )
+            .order_by("-date_effet", "-created_at")[:cls.LIMITE]
+        )

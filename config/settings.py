@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -38,8 +39,15 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    # Third party
+    "rest_framework",
+    "drf_spectacular",
+    "django_filters",
+    "rest_framework_simplejwt.token_blacklist",
 
+    # Local
     "apps.rh.apps.RhConfig",
+    "apps.authentication.apps.AuthenticationConfig",
 ]
 
 MIDDLEWARE = [
@@ -127,3 +135,127 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# ==========================================================
+# Django REST Framework
+# ==========================================================
+
+REST_FRAMEWORK = {
+
+    # Authentification
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+
+    # Permissions
+    "DEFAULT_PERMISSION_CLASSES": (
+        "apps.rh.core.permissions.IsAuthenticatedAndActive",
+    ),
+
+    # Pagination
+    "DEFAULT_PAGINATION_CLASS": "apps.rh.core.pagination.SGCPPagination",
+
+    "PAGE_SIZE": 20,
+
+    # Recherche / Filtres / Tri
+    "DEFAULT_FILTER_BACKENDS": (
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
+        "rest_framework.filters.OrderingFilter",
+    ),
+
+    # Parsing
+    "DEFAULT_PARSER_CLASSES": (
+        "rest_framework.parsers.JSONParser",
+        "rest_framework.parsers.FormParser",
+        "rest_framework.parsers.MultiPartParser",
+    ),
+
+    # Rendu
+    "DEFAULT_RENDERER_CLASSES": (
+        "rest_framework.renderers.JSONRenderer",
+    ),
+
+    # Format des dates
+    "DATE_FORMAT": "%d/%m/%Y",
+
+    "DATETIME_FORMAT": "%d/%m/%Y %H:%M",
+
+    # Format des entrées
+    "DATE_INPUT_FORMATS": (
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+    ),
+
+    "DATETIME_INPUT_FORMATS": (
+        "%Y-%m-%d %H:%M:%S",
+        "%d/%m/%Y %H:%M",
+    ),
+
+    # Gestion des exceptions
+    "EXCEPTION_HANDLER": "rest_framework.views.exception_handler",
+
+    # Documentation OpenAPI
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+
+}
+
+
+# ==========================================================
+# DRF Spectacular
+# ==========================================================
+
+SPECTACULAR_SETTINGS = {
+
+    "TITLE": (
+        "SGCP API"
+    ),
+
+    "DESCRIPTION": (
+        "API du Système de Gestion "
+        "de Carrière du Personnel"
+    ),
+
+    "VERSION": "1.0.0",
+
+    "SERVE_INCLUDE_SCHEMA": False,
+
+    "COMPONENT_SPLIT_REQUEST": True,
+
+}
+
+
+SIMPLE_JWT = {
+
+    "ACCESS_TOKEN_LIFETIME": timedelta(
+        hours=8,
+    ),
+
+    "REFRESH_TOKEN_LIFETIME": timedelta(
+        days=7,
+    ),
+
+    "ROTATE_REFRESH_TOKENS": True,
+
+    "BLACKLIST_AFTER_ROTATION": True,
+
+    "UPDATE_LAST_LOGIN": True,
+
+    "ALGORITHM": "HS256",
+
+    "SIGNING_KEY": SECRET_KEY,
+
+    "AUTH_HEADER_TYPES": (
+        "Bearer",
+    ),
+
+    "AUTH_TOKEN_CLASSES": (
+        "rest_framework_simplejwt.tokens.AccessToken",
+    ),
+
+    "TOKEN_TYPE_CLAIM": "token_type",
+
+    "JTI_CLAIM": "jti",
+
+}

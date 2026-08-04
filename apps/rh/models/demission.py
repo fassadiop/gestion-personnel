@@ -1,38 +1,30 @@
 # apps/rh/models/demission.py
 
-"""
-==========================================================
-SGCP - Système de Gestion de Carrière du Personnel
-
-Fichier : apps/rh/models/demission.py
-
-Description :
-    Informations spécifiques à une démission.
-
-    Ce modèle complète un événement de carrière de type
-    DEMISSION.
-
-Auteur : SGCP
-Version : 1.0
-==========================================================
-"""
-
 from django.db import models
 
-from apps.rh.models.base_evenement import BaseEvenementModel
+from apps.rh.core.base import BaseStructureModel
+
+from apps.rh.models.evenement import EvenementCarriere
 
 
-class Demission(BaseEvenementModel):
+class Demission(BaseStructureModel):
     """
-    Informations spécifiques à une démission.
+    Démission.
 
-    La démission met fin définitivement à la relation
-    entre l'agent et l'administration.
+    Correspond à la démission définitive
+    d'un agent de la Fonction publique.
 
-    Les informations communes (agent, acte administratif,
-    dates, documents, etc.) sont portées par
-    EvenementCarriere.
+    Cet événement met fin définitivement
+    à la carrière de l'agent.
     """
+
+    evenement = models.OneToOneField(
+        EvenementCarriere,
+        on_delete=models.CASCADE,
+        related_name="demission",
+        verbose_name="Événement de carrière",
+        help_text="Événement de carrière associé.",
+    )
 
     motif = models.TextField(
         blank=True,
@@ -41,22 +33,21 @@ class Demission(BaseEvenementModel):
         help_text="Motif de la démission.",
     )
 
-    observation = models.TextField(
-        blank=True,
-        default="",
-        verbose_name="Observations",
-        help_text="Observations complémentaires.",
-    )
-
     class Meta:
         db_table = "rh_demission"
 
         verbose_name = "Démission"
         verbose_name_plural = "Démissions"
 
-        ordering = ["-id"]
+        ordering = (
+            "-id",
+        )
+
+        indexes = (
+            models.Index(
+                fields=("evenement",),
+            ),
+        )
 
     def __str__(self):
-        return (
-            f"Démission ({self.agent})"
-        )
+        return f"{self.evenement.agent}"

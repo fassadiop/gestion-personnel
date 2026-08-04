@@ -1,0 +1,26 @@
+
+from apps.rh.services.consultation.dashboard.activites import DashboardActiviteService
+from apps.rh.services.consultation.dashboard.alertes import (
+    DashboardAlerteService,
+)
+from apps.rh.services.consultation.dashboard.kpi import (
+    DashboardKPIService,
+)
+from apps.rh.services.consultation.dashboard.statistiques import (
+    DashboardStatistiquesService,
+)
+
+
+class DashboardService:
+    """
+    Service principal du tableau de bord.
+    """
+
+    @classmethod
+    def execute(cls):
+        return {
+            "kpis": DashboardKPIService.execute(),
+            "statistiques": DashboardStatistiquesService.execute(),
+            "alertes": DashboardAlerteService.execute(),
+            "activites": DashboardActiviteService.execute(),
+        }

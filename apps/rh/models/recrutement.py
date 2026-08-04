@@ -7,8 +7,6 @@ from apps.rh.core.base import BaseStructureModel
 from apps.rh.models.evenement import EvenementCarriere
 from apps.rh.models.organisation import (
     Structure,
-    UniteOrganisationnelle,
-    Poste,
 )
 
 from apps.rh.models.referentiels import (
@@ -16,7 +14,6 @@ from apps.rh.models.referentiels import (
     Grade,
     Classe,
     Echelon,
-    PositionAdministrative,
 )
 
 
@@ -28,11 +25,7 @@ class Recrutement(BaseStructureModel):
     RECRUTEMENT.
 
     Il contient les informations nécessaires à la création
-    de la première :
-
-        - SituationAdministrative
-        - Affectation
-        - OccupationPoste
+    de la première SituationAdministrative de l'agent.
     """
 
     evenement = models.OneToOneField(
@@ -71,13 +64,6 @@ class Recrutement(BaseStructureModel):
         verbose_name="Échelon",
     )
 
-    position_administrative = models.ForeignKey(
-        PositionAdministrative,
-        on_delete=models.PROTECT,
-        related_name="recrutements",
-        verbose_name="Position administrative",
-    )
-
     structure = models.ForeignKey(
         Structure,
         on_delete=models.PROTECT,
@@ -85,35 +71,16 @@ class Recrutement(BaseStructureModel):
         verbose_name="Structure",
     )
 
-    unite = models.ForeignKey(
-        UniteOrganisationnelle,
-        on_delete=models.PROTECT,
-        related_name="recrutements",
-        verbose_name="Unité organisationnelle",
-        null=True,
+    date_recrutement = models.DateField(
+        verbose_name="Date de recrutement",
+        help_text="Date effective du recrutement dans la fonction publique.",
+    )
+
+    numero_document = models.CharField(
+        max_length=150,
         blank=True,
-    )
-
-    poste = models.ForeignKey(
-        Poste,
-        on_delete=models.PROTECT,
-        related_name="recrutements",
-        verbose_name="Poste",
-        null=True,
-        blank=True,
-    )
-
-    date_prise_service = models.DateField(
-        verbose_name="Date de prise de service",
-        help_text="Date effective de prise de service.",
-    )
-
-    date_anciennete = models.DateField(
-        verbose_name="Date d'ancienneté",
-        help_text=(
-            "Date retenue pour le calcul de l'ancienneté "
-            "administrative."
-        ),
+        verbose_name="Numéro du document",
+        help_text="Numéro officiel du document.",
     )
 
     class Meta:
@@ -123,17 +90,15 @@ class Recrutement(BaseStructureModel):
         verbose_name_plural = "Recrutements"
 
         ordering = [
-            "-date_prise_service",
+            "-date_recrutement",
             "-id",
         ]
 
         indexes = [
 
-            models.Index(fields=["date_prise_service"]),
+            models.Index(fields=["date_recrutement"]),
 
             models.Index(fields=["structure"]),
-
-            models.Index(fields=["poste"]),
 
         ]
 
